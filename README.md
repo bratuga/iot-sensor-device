@@ -67,3 +67,8 @@ quando a compilação passa. Binários e caches não são versionados no Git.
 
 A administração usa HTTP numa rede local de confiança. O firmware não implementa
 TLS, KNX Secure, assinatura de firmware nem rollback automático da aplicação.
+
+## Saídas de relé (0.2.0)
+
+Quatro relés configuráveis pela web, com GPIO, polaridade e grupos KNX de comando/feedback.
+Controlo web e KNX partilham o mesmo estado. Ver [relés e knxd](docs/RELAYS.md).

@@ -44,6 +44,8 @@ struct Reading {
   sensor::Publication publication;
 };
 Reading readings[5];
+device::RelayState relays[4];
+void setRelay(unsigned i, bool on);
 uint32_t ipNumber(IPAddress ip) {
   return (uint32_t(ip[0]) << 24) | (uint32_t(ip[1]) << 16) | (uint32_t(ip[2]) << 8) | ip[3];
 }
@@ -83,6 +85,7 @@ class Events : public knxip::Listener {
   void onSent(uint32_t token, bool ok) override {
     if (token >= 1 && token <= 5)
       readings[token - 1].publication.complete(ok, millis());
+    if (token >= 100 && token < 104) relays[token - 100].complete(ok);
   }
 } events;
 knxip::TunnelClient tunnel(transport, events);
@@ -106,6 +109,7 @@ const char *stateName() {
 void Events::onEvent(knxip::Event e, uint16_t detail) {
   lastEvent = "Evento KNX " + String(int(e)) + " / " + String(detail);
   if (e == knxip::Event::Connected) {
+    for (auto &r : relays) r.reconnect();
     lastEvent = "KNX ligado: " + individualText(tunnel.individualAddress());
     for (auto &r : readings)
       r.publication.reconnect();
@@ -124,14 +128,53 @@ void Events::onTelegram(const knxip::Telegram &t) {
     s += h;
   }
   logTelegram(s);
-  if (t.operation != knxip::Operation::Read || updating || restarting)
-    return;
+  if (updating || restarting) return;
+  for (unsigned i = 0; i < 4; ++i) {
+    const auto &r = config.relay[i];
+    if (!r.enabled) continue;
+    uint16_t command, feedback;
+    sensor::parseGroup(r.commandGroup.c_str(), command);
+    sensor::parseGroup(r.feedbackGroup.c_str(), feedback);
+    bool value;
+    if (t.operation == knxip::Operation::Write && t.group == command && t.asBool(value))
+      setRelay(i, value);
+    if (t.operation == knxip::Operation::Read && t.group == feedback)
+      relays[i].requestRead();
+  }
+  if (t.operation != knxip::Operation::Read) return;
   for (unsigned i = 0; i < 5; ++i) {
     uint16_t group;
     uint8_t bytes[2];
     if (config.channel[i].enabled && sensor::parseGroup(config.channel[i].group.c_str(), group) &&
         group == t.group && fresh(i, millis()) && sensor::encodeDpt9(readings[i].value, bytes))
       tunnel.respond(group, bytes, 2, false, 0);
+  }
+}
+void setRelay(unsigned i, bool on) {
+  if (i >= 4 || !config.relay[i].enabled) return;
+  digitalWrite(config.relay[i].gpio, device::relayLevel(on, config.relay[i].activeLow) ? HIGH : LOW);
+  relays[i].command(on);
+}
+void initRelays() {
+  for (unsigned i = 0; i < 4; ++i) {
+    if (!config.relay[i].enabled) continue;
+    // Preload OFF before enabling output; hardware pull resistors are still required at reset.
+    digitalWrite(config.relay[i].gpio, device::relayLevel(false, config.relay[i].activeLow) ? HIGH : LOW);
+    pinMode(config.relay[i].gpio, OUTPUT);
+  }
+}
+void publishRelays(uint32_t now) {
+  if (tunnel.state() != knxip::State::Connected) return;
+  for (unsigned i = 0; i < 4; ++i) {
+    auto &r = relays[i];
+    if (!config.relay[i].enabled || !r.due(now)) continue;
+    uint16_t group;
+    if (!sensor::parseGroup(config.relay[i].feedbackGroup.c_str(), group)) continue;
+    const uint8_t value = r.on ? 1 : 0;
+    const bool response = r.readRequested;
+    auto result = response ? tunnel.respond(group, &value, 1, true, 100 + i)
+                           : tunnel.writeBool(group, r.on, 100 + i);
+    if (result == knxip::Result::Queued) r.queued(now, response);
   }
 }
 void setReading(unsigned i, float value, bool valid, uint32_t now) {
@@ -397,7 +440,7 @@ void setupWeb() {
   web.on("/api/config", HTTP_GET, [] {
     if (!auth())
       return;
-    DynamicJsonDocument d(7168), c(6144);
+    DynamicJsonDocument d(12288), c(10240);
     configJson(config, c, false);
     d["config"].set(c.as<JsonObject>());
     d["csrf"] = csrf;
@@ -411,11 +454,11 @@ void setupWeb() {
       return;
     }
     String body = web.arg("plain");
-    if (body.length() > 6000) {
+    if (body.length() > 10000) {
       error(413, "Configuracao demasiado grande");
       return;
     }
-    DynamicJsonDocument d(8192);
+    DynamicJsonDocument d(12288);
     if (deserializeJson(d, body)) {
       error(400, "JSON invalido");
       return;
@@ -433,12 +476,25 @@ void setupWeb() {
     web.send(200, "application/json", "{\"saved\":true,\"reboot\":true}");
     scheduleRestart();
   });
+  web.on("/api/relay", HTTP_POST, [] {
+    if (!mutation()) return;
+    if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
+    if (web.arg("plain").length() > 128) { error(413, "Pedido demasiado grande"); return; }
+    StaticJsonDocument<256> d;
+    if (deserializeJson(d, web.arg("plain")) || !d["index"].is<int>() || !d["on"].is<bool>()) {
+      error(400, "Indica index e on"); return;
+    }
+    int i = d["index"];
+    if (i < 0 || i >= 4 || !config.relay[i].enabled) { error(400, "Rele indisponivel"); return; }
+    setRelay(unsigned(i), d["on"].as<bool>());
+    web.send(200, "application/json", "{\"applied\":true}");
+  });
   web.on("/api/status", HTTP_GET, [] {
     if (!auth())
       return;
     uint32_t now = millis();
-    DynamicJsonDocument d(6144);
-    d["firmware"] = "0.1.0";
+    DynamicJsonDocument d(10240);
+    d["firmware"] = "0.2.0";
     d["name"] = config.name;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -463,6 +519,13 @@ void setupWeb() {
       else
         o["value"] = nullptr;
       o["unit"] = i == 1 ? "%" : i == 2 ? "Pa" : "°C";
+    }
+    JsonArray outputs = d.createNestedArray("relays");
+    for (unsigned i = 0; i < 4; ++i) {
+      JsonObject o = outputs.createNestedObject();
+      o["name"] = config.relay[i].name; o["enabled"] = config.relay[i].enabled;
+      o["on"] = relays[i].on; o["gpio"] = config.relay[i].gpio;
+      o["feedbackPending"] = relays[i].dirty || relays[i].pending || relays[i].readRequested;
     }
     JsonArray roms = d.createNestedArray("roms");
     for (unsigned i = 0; i < romCount; ++i)
@@ -592,6 +655,7 @@ void setup() {
     }
     Serial.println("Primeiro acesso: admin / " + config.adminPassword);
   }
+  initRelays();
   csrf = randomSecret();
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(config.name.c_str());
@@ -604,7 +668,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.1.0. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.0. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
@@ -620,6 +684,7 @@ void loop() {
   serialCommands();
   if (!updating && !restarting) {
     sampleSensors(millis());
+    publishRelays(millis());
     publish(millis());
     display(millis());
   }
