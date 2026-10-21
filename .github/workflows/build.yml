@@ -1,0 +1,29 @@
+name: Firmware ESP32
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Testes nativos
+        run: python scripts/test_host.py
+      - name: Instalar PlatformIO
+        run: pip install platformio==6.1.18
+      - name: Compilar ESP32
+        run: pio run -e esp32
+      - name: Guardar firmware compilado
+        uses: actions/upload-artifact@v4
+        with:
+          name: sensor-esp32-${{ github.sha }}
+          path: |
+            .pio/build/esp32/firmware.bin
+            .pio/build/esp32/firmware.elf
+          if-no-files-found: error

@@ -1,0 +1,15 @@
+"""Run isolated sensor-core tests and the existing portable KNX regression suite."""
+from pathlib import Path
+import subprocess
+import shutil
+import sys
+root = Path(__file__).resolve().parents[1]
+compiler = shutil.which("g++") or shutil.which("clang++")
+if not compiler:
+    raise SystemExit("Install a C++14 compiler (g++ or clang++)")
+build = root / "build"
+build.mkdir(exist_ok=True)
+exe = build / ("sensor_core_tests.exe" if sys.platform == "win32" else "sensor_core_tests")
+subprocess.run([compiler, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(root / "include"), str(root / "test/core_tests.cpp"), "-o", str(exe)], check=True)
+subprocess.run([str(exe)], check=True)
+subprocess.run([sys.executable, str(root / "lib/knx-tunneling/scripts/run_tests.py"), "--compiler", compiler, "--sanitize"], check=True)

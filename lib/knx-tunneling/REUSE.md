@@ -73,7 +73,9 @@ A fila contém até 16 mensagens copiadas. O payload normal tem até 14 bytes.
 A aplicação define os grupos e os DPT e faz a conversão dos valores dos sensores;
 o módulo não converte automaticamente temperatura ou humidade.
 Validar os componentes do endereço de grupo antes de usar `groupAddress`:
-principal 0–31, intermédio 0–7 e subgrupo 0–255.
+principal 0–15, intermédio 0–7 e subgrupo 0–255, excluindo 0/0/0 para a aplicação de sensores.
+O espaço KNX completo permite principal 0–31, mas esta implementação limita
+os endereços a 0x7FFF; os grupos principais 16–31 exigem uma extensão do módulo.
 
 ## Ligação, recuperação e vários dispositivos
 
