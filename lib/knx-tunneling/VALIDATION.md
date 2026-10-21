@@ -1,4 +1,15 @@
-# Validation record - 2026-10-01
+# Validation record
+
+## Owner-confirmed hardware use - 2026-10-21
+
+The owner confirms that this supplied version has already been used in two
+projects on a classic ESP32, with KNX transmission and reception working as
+expected. This is owner-reported physical validation, not a hardware test
+performed by the assistant. ESP32-S3 operation is not covered by this report.
+This update supersedes the earlier assumption that the supplied version had
+only been tested in simulation.
+
+## Historical record - 2026-10-01
 
 The original ESP32 prototype was reported working by its owner with an existing
 IP interface. This portable implementation is a separate refactoring. Its
