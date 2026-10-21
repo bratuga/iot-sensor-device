@@ -1,4 +1,5 @@
 #include "SensorCore.h"
+#include "RelayCore.h"
 #include <cassert>
 #include <iostream>
 #include <limits>
@@ -10,6 +11,43 @@ static float decode(const uint8_t b[2]) {
   return float(m) * float(1u << ((raw >> 11) & 15)) * 0.01f;
 }
 int main() {
+  assert(!device::relayLevel(true, true));
+  assert(device::relayLevel(false, true));
+  assert(device::relayLevel(true, false));
+  assert(!device::relayLevel(false, false));
+  for (int p : {-1, 0, 1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 20, 24, 28, 34, 35, 36, 39})
+    assert(!device::outputPin(p));
+  for (int p : {4, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33})
+    assert(device::outputPin(p));
+  device::RelayState relay;
+  assert(!relay.on && relay.due(0));
+  relay.queued(0, false);
+  relay.command(true); // command arrives while OFF feedback awaits ACK
+  relay.complete(true);
+  assert(relay.dirty && relay.on && relay.due(250));
+  relay.queued(250, false);
+  relay.complete(false);
+  assert(relay.dirty && !relay.due(499) && relay.due(500));
+  relay.queued(500, false);
+  relay.complete(true);
+  assert(!relay.dirty && !relay.due(750));
+  relay.command(true); // repeated command still receives feedback
+  assert(relay.due(750));
+  relay.queued(750, false);
+  relay.complete(true);
+  relay.requestRead();
+  relay.queued(1000, true);
+  relay.requestRead(); // don't lose a second read during ACK
+  relay.complete(true);
+  assert(relay.readRequested);
+  relay.queued(1250, true);
+  relay.complete(false);
+  assert(relay.readRequested && relay.due(1500));
+  relay.reconnect();
+  assert(relay.on && relay.dirty);
+  relay.queued(0xffffff80u, false);
+  relay.complete(false);
+  assert(!relay.due(0x79u) && relay.due(0x7au));
   uint8_t b[2];
   assert(sensor::encodeDpt9(0, b) && b[0] == 0 && b[1] == 0);
   assert(sensor::encodeDpt9(20, b) && b[0] == 7 && b[1] == 0xd0);

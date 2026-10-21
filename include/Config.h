@@ -1,5 +1,6 @@
 #pragma once
 #include "SensorCore.h"
+#include "RelayCore.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>
@@ -8,6 +9,11 @@ struct ChannelConfig {
   bool enabled = false;
   float offset = 0;
   sensor::Policy policy;
+};
+struct RelayConfig {
+  String name, commandGroup, feedbackGroup;
+  bool enabled = false, activeLow = true;
+  int gpio = -1;
 };
 struct Config {
   String name = "iot-sensor", ssid, wifiPassword, adminPassword;
@@ -19,7 +25,9 @@ struct Config {
   uint32_t sampleMs = 5000;
   String rom[2];
   ChannelConfig channel[5];
+  RelayConfig relay[4];
   Config() {
+    for (int i = 0; i < 4; ++i) relay[i].name = "Rele " + String(i + 1);
     const char *names[] = {"Ambiente", "Humidade", "Pressao", "Sonda 1", "Sonda 2"};
     for (int i = 0; i < 5; ++i) {
       channel[i].name = names[i];

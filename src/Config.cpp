@@ -9,12 +9,9 @@ String randomSecret() {
            (unsigned long)esp_random(), (unsigned long)esp_random());
   return String(b);
 }
-static bool pin(int p) {
-  return p == 4 || p == 13 || p == 14 || p == 15 || p == 16 || p == 17 || p == 18 || p == 19 ||
-         p == 21 || p == 22 || p == 23 || p == 25 || p == 26 || p == 27 || p == 32 || p == 33;
-}
+static bool pin(int p) { return device::outputPin(p); }
 void configJson(const Config &c, JsonDocument &d, bool secrets) {
-  d["schema"] = 1;
+  d["schema"] = 2;
   d["name"] = c.name;
   d["ssid"] = c.ssid;
   if (secrets) {
@@ -35,6 +32,13 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["bmeAddress"] = c.bmeAddress;
   d["oledAddress"] = c.oledAddress;
   d["sampleMs"] = c.sampleMs;
+  JsonArray relays = d.createNestedArray("relays");
+  for (const auto &r : c.relay) {
+    JsonObject o = relays.createNestedObject();
+    o["name"] = r.name; o["enabled"] = r.enabled; o["gpio"] = r.gpio;
+    o["activeLow"] = r.activeLow;
+    o["commandGroup"] = r.commandGroup; o["feedbackGroup"] = r.feedbackGroup;
+  }
   JsonArray rom = d.createNestedArray("rom");
   rom.add(c.rom[0]);
   rom.add(c.rom[1]);
@@ -58,7 +62,7 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
     return false;
   };
   c = old;
-  if (d["schema"] != 1 || !d["channels"].is<JsonArray>() || d["channels"].size() != 5 ||
+  if ((d["schema"] != 1 && d["schema"] != 2) || !d["channels"].is<JsonArray>() || d["channels"].size() != 5 ||
       !d["rom"].is<JsonArray>() || d["rom"].size() != 2)
     return bad("Formato de configuracao invalido");
   const char *strings[] = {"name", "ssid", "gateway"};
@@ -181,10 +185,55 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
           return bad("Grupos de medicao devem ser diferentes");
     }
   }
+  // Migrate schema 1 with disabled outputs; schema 2 always includes all four relays.
+  if (d["schema"] == 1) {
+    for (unsigned i = 0; i < 4; ++i) {
+      c.relay[i] = RelayConfig();
+      c.relay[i].name = "Rele " + String(i + 1);
+    }
+  } else {
+    if (!d["relays"].is<JsonArray>() || d["relays"].size() != 4)
+      return bad("Configura exatamente quatro reles");
+    uint16_t commands[4] = {}, feedbacks[4] = {};
+    for (unsigned i = 0; i < 4; ++i) {
+      JsonObject o = d["relays"][i];
+      auto &r = c.relay[i];
+      if (!o["name"].is<const char *>() || !o["enabled"].is<bool>() ||
+          !o["gpio"].is<int>() || !o["activeLow"].is<bool>() ||
+          !o["commandGroup"].is<const char *>() || !o["feedbackGroup"].is<const char *>())
+        return bad("Campos do rele invalidos");
+      r.name = o["name"].as<String>(); r.enabled = o["enabled"];
+      r.gpio = o["gpio"]; r.activeLow = o["activeLow"];
+      r.commandGroup = o["commandGroup"].as<String>();
+      r.feedbackGroup = o["feedbackGroup"].as<String>();
+      if (r.name.length() < 1 || r.name.length() > 32 ||
+          (r.gpio != -1 && !pin(r.gpio))) return bad("Nome ou GPIO do rele invalido");
+      if ((r.commandGroup.length() && !sensor::parseGroup(r.commandGroup.c_str(), commands[i])) ||
+          (r.feedbackGroup.length() && !sensor::parseGroup(r.feedbackGroup.c_str(), feedbacks[i])))
+        return bad("Grupo KNX do rele invalido");
+      if (!r.enabled) continue;
+      if (!pin(r.gpio) || !commands[i] || !feedbacks[i])
+        return bad("Rele ativo exige GPIO e grupos de comando e feedback");
+      if (commands[i] == feedbacks[i]) return bad("Comando e feedback devem ser diferentes");
+      if (((c.bmeEnabled || c.oledEnabled) && (r.gpio == c.sda || r.gpio == c.scl)) ||
+          r.gpio == c.oneWire || (c.oledEnabled && r.gpio == c.oledReset))
+        return bad("GPIO do rele em conflito com sensor ou OLED");
+      for (unsigned j = 0; j < 5; ++j)
+        if (c.channel[j].enabled && (groups[j] == commands[i] || groups[j] == feedbacks[i]))
+          return bad("Grupos de rele em conflito com medicao");
+      for (unsigned j = 0; j < i; ++j) {
+        if (!c.relay[j].enabled) continue;
+        if (r.gpio == c.relay[j].gpio) return bad("GPIO repetido entre reles");
+        if (commands[i] == commands[j] || commands[i] == feedbacks[j] ||
+            feedbacks[i] == commands[j] || feedbacks[i] == feedbacks[j])
+          return bad("Cada rele deve ter grupos KNX exclusivos");
+      }
+    }
+  }
   return true;
 }
 bool saveConfig(const Config &c) {
-  DynamicJsonDocument d(6144);
+  DynamicJsonDocument d(10240);
   configJson(c, d, true);
   if (d.overflowed())
     return false;
@@ -205,7 +254,7 @@ bool loadConfig(Config &c) {
   p.end();
   if (s.isEmpty())
     return false;
-  DynamicJsonDocument d(6144);
+  DynamicJsonDocument d(10240);
   if (deserializeJson(d, s))
     return false;
   String err;
