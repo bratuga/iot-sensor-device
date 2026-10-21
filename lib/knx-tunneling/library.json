@@ -1,0 +1,8 @@
+{
+  "name": "PortableKnxTunnel",
+  "version": "1.0.0",
+  "description": "Platform-independent C++14 KNXnet/IP UDP tunneling client with pacing and bounded queue",
+  "build": { "includeDir": "include", "srcDir": "src" },
+  "frameworks": "*",
+  "platforms": "*"
+}
