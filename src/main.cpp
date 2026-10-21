@@ -1,5 +1,15 @@
 #include "Config.h"
 #include "WebUi.h"
+// Optional private build settings. include/secrets.h is excluded by .gitignore.
+// Remove it and rebuild to stop applying test overrides.
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#ifdef LOCAL_AP_PASSWORD
+static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
+              (sizeof(LOCAL_AP_PASSWORD) >= 9 && sizeof(LOCAL_AP_PASSWORD) <= 64),
+              "AP password must be empty or contain 8-63 characters");
+#endif
 #include <Adafruit_BME280.h>
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
@@ -278,13 +288,20 @@ void publish(uint32_t now) {
       r.publication.queued(r.value, now);
   }
 }
+const char *apPassword() {
+#ifdef LOCAL_AP_PASSWORD
+  return LOCAL_AP_PASSWORD;
+#else
+  return config.adminPassword.c_str();
+#endif
+}
 void openAp() {
   if (apActive)
     return;
   WiFi.mode(WIFI_AP_STA);
   apName = "Sensor-" + WiFi.macAddress();
   apName.replace(":", "");
-  apActive = WiFi.softAP(apName.c_str(), config.adminPassword.c_str());
+  apActive = WiFi.softAP(apName.c_str(), apPassword());
   Serial.println("AP: " + apName + " | http://192.168.4.1 | utilizador admin");
 }
 void network(uint32_t now) {
@@ -618,7 +635,8 @@ void serialCommands() {
       Serial.println("IP " + WiFi.localIP().toString() + " KNX " + stateName());
     } else if (line == "SETUP") {
       openAp();
-      Serial.println("Password AP/admin: " + config.adminPassword);
+      Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
+      Serial.println("Password admin Web: " + config.adminPassword);
     } else if (line == "REBOOT") {
       scheduleRestart();
     } else {
@@ -655,6 +673,14 @@ void setup() {
     }
     Serial.println("Primeiro acesso: admin / " + config.adminPassword);
   }
+  // Apply only in RAM, after loading NVS, so existing boards can test these settings.
+  // Saving settings in the Web UI also saves the effective Wi-Fi credentials to NVS.
+#ifdef LOCAL_WIFI_SSID
+  config.ssid = LOCAL_WIFI_SSID;
+#endif
+#ifdef LOCAL_WIFI_PASSWORD
+  config.wifiPassword = LOCAL_WIFI_PASSWORD;
+#endif
   initRelays();
   csrf = randomSecret();
   WiFi.mode(WIFI_STA);
