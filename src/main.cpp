@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "Bme280Direct.h"
 #include "WebUi.h"
 // Optional private build settings. include/secrets.h is excluded by .gitignore.
 // Remove it and rebuild to stop applying test overrides.
@@ -10,7 +11,6 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
               (sizeof(LOCAL_AP_PASSWORD) >= 9 && sizeof(LOCAL_AP_PASSWORD) <= 64),
               "AP password must be empty or contain 8-63 characters");
 #endif
-#include <Adafruit_BME280.h>
 #include <Adafruit_SSD1306.h>
 #include <Arduino.h>
 #include <DallasTemperature.h>
@@ -29,7 +29,7 @@ constexpr uint16_t LocalPort = 41000;
 constexpr uint32_t SessionCooldown = 130000;
 WebServer web(80);
 WiFiUDP udp;
-Adafruit_BME280 bme;
+Bme280Direct bme;
 TwoWire oledWire(1);
 TwoWire *displayBus = &Wire;
 String bmeI2cScan, oledI2cScan;
@@ -249,14 +249,11 @@ void initSensors() {
     oledI2cScan = bmeI2cScan;
   }
   if (config.bmeEnabled) {
-    bmeOk = bme.begin(config.bmeAddress, &Wire);
+    bmeOk = bme.begin(config.bmeAddress, Wire);
     if (!bmeOk)
       Serial.println("BME apos begin: " + bmeChipId(Wire, false) +
                      " | scan: " + scanI2c(Wire));
-    if (bmeOk)
-      bme.setSampling(Adafruit_BME280::MODE_NORMAL, Adafruit_BME280::SAMPLING_X1,
-                      Adafruit_BME280::SAMPLING_X1, Adafruit_BME280::SAMPLING_X1,
-                      Adafruit_BME280::FILTER_OFF, Adafruit_BME280::STANDBY_MS_1000);
+    Serial.println(bmeOk ? "BME280: pronto" : "BME280: inicializacao falhou");
   }
   if (config.oneWire >= 0) {
     wire.reset(new OneWire(config.oneWire));
@@ -305,10 +302,12 @@ void sampleSensors(uint32_t now) {
   lastSample = now;
   if (config.bmeEnabled) {
     if (!bmeOk)
-      bmeOk = bme.begin(config.bmeAddress, &Wire);
+      bmeOk = bme.begin(config.bmeAddress, Wire);
     if (bmeOk) {
-      float t = bme.readTemperature(), h = bme.readHumidity(), p = bme.readPressure();
-      bool ok = std::isfinite(t) && std::isfinite(h) && std::isfinite(p) && t >= -40 && t <= 85 &&
+      float t = NAN, h = NAN, p = NAN;
+      bool measured = bme.sample(t, h, p);
+      bool ok = measured && std::isfinite(t) && std::isfinite(h) && std::isfinite(p) &&
+                t >= -40 && t <= 85 &&
                 h >= 0 && h <= 100 && p >= 30000 && p <= 110000;
       setReading(0, t, ok, now);
       setReading(1, h, ok, now);
