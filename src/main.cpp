@@ -30,6 +30,9 @@ constexpr uint32_t SessionCooldown = 130000;
 WebServer web(80);
 WiFiUDP udp;
 Adafruit_BME280 bme;
+TwoWire oledWire(1);
+TwoWire *displayBus = &Wire;
+String bmeI2cScan, oledI2cScan;
 std::unique_ptr<OneWire> wire;
 std::unique_ptr<DallasTemperature> ds;
 std::unique_ptr<Adafruit_SSD1306> oled;
@@ -196,10 +199,37 @@ void setReading(unsigned i, float value, bool valid, uint32_t now) {
   r.value = r.valid ? value : NAN;
   r.at = now;
 }
+String scanI2c(TwoWire &bus) {
+  String found;
+  for (uint8_t address = 0x08; address <= 0x77; ++address) {
+    bus.beginTransmission(address);
+    if (bus.endTransmission() == 0) {
+      char hex[7];
+      snprintf(hex, sizeof(hex), "0x%02X", address);
+      if (found.length()) found += ", ";
+      found += hex;
+    }
+  }
+  return found.length() ? found : "nenhum";
+}
 void initSensors() {
-  if (config.bmeEnabled || config.oledEnabled) {
+  bool sharedOled = config.oledEnabled && config.oledSda < 0;
+  if (config.bmeEnabled || sharedOled) {
     Wire.begin(config.sda, config.scl);
     Wire.setTimeOut(25);
+    bmeI2cScan = scanI2c(Wire);
+    Serial.println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
+                   " encontrados=" + bmeI2cScan);
+  }
+  if (config.oledEnabled && !sharedOled) {
+    oledWire.begin(config.oledSda, config.oledScl);
+    oledWire.setTimeOut(25);
+    displayBus = &oledWire;
+    oledI2cScan = scanI2c(oledWire);
+    Serial.println("I2C OLED: SDA=" + String(config.oledSda) + " SCL=" + String(config.oledScl) +
+                   " encontrados=" + oledI2cScan);
+  } else {
+    oledI2cScan = bmeI2cScan;
   }
   if (config.bmeEnabled) {
     bmeOk = bme.begin(config.bmeAddress, &Wire);
@@ -225,10 +255,10 @@ void initSensors() {
     }
   }
   if (config.oledEnabled) {
-    oled.reset(new Adafruit_SSD1306(128, config.oledHeight, &Wire, config.oledReset));
+    oled.reset(new Adafruit_SSD1306(128, config.oledHeight, displayBus, config.oledReset));
     oledOk = oled->begin(SSD1306_SWITCHCAPVCC, config.oledAddress, true, false);
-    Wire.beginTransmission(config.oledAddress);
-    oledOk = (Wire.endTransmission() == 0) && oledOk;
+    displayBus->beginTransmission(config.oledAddress);
+    oledOk = (displayBus->endTransmission() == 0) && oledOk;
     if (oledOk) {
       oled->clearDisplay();
       oled->setTextSize(1);
@@ -427,8 +457,7 @@ void error(int code, const String &msg) {
   sendJson(d, code);
 }
 bool authenticated() {
-  // Temporary test firmware: Web settings do not require a password.
-  return true;
+  return web.authenticate("admin", config.adminPassword.c_str());
 }
 bool auth() {
   if (authenticated())
@@ -449,15 +478,13 @@ void setupWeb() {
   const char *headers[] = {"X-CSRF-Token"};
   web.collectHeaders(headers, 1);
   web.on("/", HTTP_GET, [] {
-    if (!auth())
-      return;
+    if (!auth()) return;
     web.sendHeader("Cache-Control", "no-store");
     web.sendHeader("X-Frame-Options", "DENY");
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
   });
   web.on("/api/config", HTTP_GET, [] {
-    if (!auth())
-      return;
+    if (!auth()) return;
     DynamicJsonDocument d(12288), c(10240);
     configJson(config, c, false);
     d["config"].set(c.as<JsonObject>());
@@ -508,8 +535,7 @@ void setupWeb() {
     web.send(200, "application/json", "{\"applied\":true}");
   });
   web.on("/api/status", HTTP_GET, [] {
-    if (!auth())
-      return;
+    if (!auth()) return;
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["firmware"] = "0.2.0";
@@ -523,6 +549,8 @@ void setupWeb() {
     d["individual"] = individualText(tunnel.individualAddress());
     d["bme"] = bmeOk;
     d["oled"] = oledOk;
+    d["i2cMain"] = bmeI2cScan;
+    d["i2cOled"] = oledI2cScan;
     d["lastEvent"] = lastEvent;
     d["sent"] = tunnel.stats().sentAttempts;
     d["acked"] = tunnel.stats().acknowledged;
@@ -676,7 +704,8 @@ void setup() {
     }
     Serial.println("Primeiro acesso: admin / " + config.adminPassword);
   }
-  // Private defaults apply only until credentials are saved in NVS.
+  // Private test defaults are only used until credentials have been saved in NVS.
+  // Never overwrite a user's saved Web settings on every boot.
 #ifdef LOCAL_WIFI_SSID
   if (config.ssid.isEmpty()) config.ssid = LOCAL_WIFI_SSID;
 #endif
