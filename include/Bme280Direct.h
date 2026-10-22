@@ -12,8 +12,10 @@ class Bme280Direct {
     bus_ = &bus;
     address_ = address;
     ready_ = false;
+    error_ = "ID I2C";
     uint8_t id;
     if (!read(0xD0, &id, 1) || id != 0x60) return false;
+    error_ = "calibracao I2C";
     uint8_t trim[26], humidity[7];
     if (!read(0x88, trim, sizeof(trim)) || !read(0xE1, humidity, sizeof(humidity)))
       return false;
@@ -25,8 +27,10 @@ class Bme280Direct {
     h4_ = sign12((uint16_t(humidity[3]) << 4) | (humidity[4] & 0x0f));
     h5_ = sign12((uint16_t(humidity[5]) << 4) | (humidity[4] >> 4));
     h6_ = int8_t(humidity[6]);
+    error_ = "calibracao invalida";
     if (!t1_ || !p1_) return false;
     // Humidity oversampling must precede ctrl_meas to take effect.
+    error_ = "configuracao I2C";
     if (!write(0xF2, 0x01) || !write(0xF5, 0x00) || !write(0xF4, 0x27))
       return false; // normal mode, x1 temperature and pressure
     delay(15);
@@ -37,10 +41,12 @@ class Bme280Direct {
   bool sample(float &temperature, float &humidity, float &pressure) {
     if (!ready_) return false;
     uint8_t raw[8];
+    error_ = "dados I2C";
     if (!read(0xF7, raw, sizeof(raw))) { ready_ = false; return false; }
     int32_t adcP = (int32_t(raw[0]) << 12) | (int32_t(raw[1]) << 4) | (raw[2] >> 4);
     int32_t adcT = (int32_t(raw[3]) << 12) | (int32_t(raw[4]) << 4) | (raw[5] >> 4);
     int32_t adcH = (int32_t(raw[6]) << 8) | raw[7];
+    error_ = "ADC sem medicao";
     if (adcP == 0x80000 || adcT == 0x80000 || adcH == 0x8000) return false;
     // Bosch BME280 compensation in double precision; pressure is in Pa.
     double v1 = (adcT / 16384.0 - t1_ / 1024.0) * t2_;
@@ -54,6 +60,7 @@ class Bme280Direct {
     v2 = v2 / 4.0 + p4_ * 65536.0;
     v1 = (p3_ * v1 * v1 / 524288.0 + p2_ * v1) / 524288.0;
     v1 = (1.0 + v1 / 32768.0) * p1_;
+    error_ = "pressao sem calibracao";
     if (v1 == 0.0) return false;
     double p = 1048576.0 - adcP;
     p = (p - v2 / 4096.0) * 6250.0 / v1;
@@ -66,29 +73,42 @@ class Bme280Direct {
         (1.0 + h3_ / 67108864.0 * h)));
     h *= 1.0 - h1_ * h / 524288.0;
     humidity = float(constrain(h, 0.0, 100.0));
+    error_ = "valor nao finito";
     return std::isfinite(temperature) && std::isfinite(humidity) && std::isfinite(pressure);
   }
+
+  const char *lastError() const { return error_; }
+  uint8_t lastRegister() const { return lastRegister_; }
 
  private:
   static uint16_t u16(const uint8_t *p) { return uint16_t(p[0]) | (uint16_t(p[1]) << 8); }
   static int16_t s16(const uint8_t *p) { return int16_t(u16(p)); }
   static int16_t sign12(uint16_t v) { return (v & 0x800) ? int16_t(v | 0xf000) : int16_t(v); }
   bool write(uint8_t reg, uint8_t value) {
+    lastRegister_ = reg;
     bus_->beginTransmission(address_);
     bus_->write(reg); bus_->write(value);
     return bus_->endTransmission() == 0;
   }
   bool read(uint8_t reg, uint8_t *bytes, size_t count) {
-    bus_->beginTransmission(address_);
-    bus_->write(reg);
-    if (bus_->endTransmission(false) != 0) return false;
-    if (bus_->requestFrom(address_, uint8_t(count)) != count) return false;
-    for (size_t i = 0; i < count; ++i) bytes[i] = bus_->read();
+    // Small transfers match the previously working Windows IoT implementation
+    // and avoid a long repeated-start transfer for the calibration block.
+    for (size_t offset = 0; offset < count; offset += 2) {
+      uint8_t part = uint8_t(count - offset >= 2 ? 2 : 1);
+      lastRegister_ = uint8_t(reg + offset);
+      bus_->beginTransmission(address_);
+      bus_->write(lastRegister_);
+      if (bus_->endTransmission(false) != 0) return false;
+      if (bus_->requestFrom(address_, part) != part) return false;
+      for (uint8_t i = 0; i < part; ++i) bytes[offset + i] = bus_->read();
+    }
     return true;
   }
   TwoWire *bus_ = nullptr;
   uint8_t address_ = 0;
   bool ready_ = false;
+  const char *error_ = "por inicializar";
+  uint8_t lastRegister_ = 0;
   uint16_t t1_, p1_;
   int16_t t2_, t3_, p2_, p3_, p4_, p5_, p6_, p7_, p8_, p9_;
   uint8_t h1_, h3_;
