@@ -31,15 +31,28 @@ class Bme280Direct {
     if (!t1_ || !p1_) return false;
     // Humidity oversampling must precede ctrl_meas to take effect.
     error_ = "configuracao I2C";
-    if (!write(0xF2, 0x01) || !write(0xF5, 0x00) || !write(0xF4, 0x27))
-      return false; // normal mode, x1 temperature and pressure
-    delay(15);
+    if (!write(0xF2, 0x01) || !write(0xF5, 0x00) || !write(0xF4, 0x24))
+      return false; // sleep mode, x1 temperature and pressure
     ready_ = true;
     return true;
   }
 
   bool sample(float &temperature, float &humidity, float &pressure) {
     if (!ready_) return false;
+    // Each forced conversion is a single coherent sample. At x1/x1/x1 the
+    // Bosch worst-case conversion time is 9.3 ms; wait, then check measuring.
+    error_ = "iniciar medicao";
+    if (!write(0xF4, 0x25)) { ready_ = false; return false; }
+    delay(10);
+    error_ = "aguardar medicao";
+    uint8_t status = 0;
+    bool finished = false;
+    for (unsigned attempt = 0; attempt < 20; ++attempt) {
+      if (!read(0xF3, &status, 1)) { ready_ = false; return false; }
+      if ((status & 0x08) == 0) { finished = true; break; }
+      delay(1);
+    }
+    if (!finished) return false;
     uint8_t raw[8];
     error_ = "dados I2C";
     if (!read(0xF7, raw, sizeof(raw))) { ready_ = false; return false; }
