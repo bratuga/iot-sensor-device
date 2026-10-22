@@ -91,14 +91,14 @@ class Bme280Direct {
     return bus_->endTransmission() == 0;
   }
   bool read(uint8_t reg, uint8_t *bytes, size_t count) {
-    // Small transfers match the previously working Windows IoT implementation
-    // and avoid a long repeated-start transfer for the calibration block.
+    // Small transfers avoid long I2C reads. End the register-select write
+    // with STOP before reading; this board fails non-stop write/read requests.
     for (size_t offset = 0; offset < count; offset += 2) {
       uint8_t part = uint8_t(count - offset >= 2 ? 2 : 1);
       lastRegister_ = uint8_t(reg + offset);
       bus_->beginTransmission(address_);
       bus_->write(lastRegister_);
-      if (bus_->endTransmission(false) != 0) return false;
+      if (bus_->endTransmission(true) != 0) return false;
       if (bus_->requestFrom(address_, part) != part) return false;
       for (uint8_t i = 0; i < part; ++i) bytes[offset + i] = bus_->read();
     }
