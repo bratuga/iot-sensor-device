@@ -13,7 +13,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <button type="submit">Guardar e reiniciar</button> <button type="button" id="export">Exportar sem passwords</button>
 <p>Exportação para consulta; introduz as alterações nos campos desta página. As passwords vazias mantêm o valor atual.</p></section></form>
 <section><h2>Atualizar firmware</h2><p>Seleciona o firmware.bin compilado para este perfil ESP32. Mantém a alimentação durante a atualização.</p><input id="firmware" type="file" accept=".bin"><p><button id="update">Instalar atualização OTA</button></p><progress id="progress" max="100" value="0" hidden></progress></section>
-<footer>MySmartHouse · firmware 0.2.0 · administração apenas em rede de confiança</footer>
+<footer>MySmartHouse · firmware de testes · acesso Web sem password; usar apenas em rede de confiança</footer>
 <script>
 'use strict';let cfg,csrf='',busy=false;
 const $=id=>document.getElementById(id);const show=s=>{$('msg').textContent=s;$('msg').style.display='block'};
