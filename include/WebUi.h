@@ -13,13 +13,13 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <button type="submit">Guardar e reiniciar</button> <button type="button" id="export">Exportar sem passwords</button>
 <p>Exportação para consulta; introduz as alterações nos campos desta página. As passwords vazias mantêm o valor atual.</p></section></form>
 <section><h2>Atualizar firmware</h2><p>Seleciona o firmware.bin compilado para este perfil ESP32. Mantém a alimentação durante a atualização.</p><input id="firmware" type="file" accept=".bin"><p><button id="update">Instalar atualização OTA</button></p><progress id="progress" max="100" value="0" hidden></progress></section>
-<footer>MySmartHouse · firmware de testes · administração Web protegida por password</footer>
+<footer>MySmartHouse · firmware de testes · acesso Web sem password durante os testes</footer>
 <script>
 'use strict';let cfg,csrf='',busy=false;
 const $=id=>document.getElementById(id);const show=s=>{$('msg').textContent=s;$('msg').style.display='block'};
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options});const j=await r.json();if(!r.ok)throw Error(j.error||('HTTP '+r.status));return j;}
 function field(parent,id,label,value,type='text',step){const l=document.createElement('label');const input=document.createElement('input');input.id=id;input.type=type;if(type==='checkbox'){input.checked=!!value;l.append(input,document.createTextNode(label));}else{l.textContent=label;input.value=value??'';if(step)input.step=step;l.append(input);}$(parent).append(l);return input;}
-const gs=[['name','Nome do dispositivo'],['ssid','Rede Wi-Fi (SSID)'],['wifiPassword','Password Wi-Fi','password'],['adminPassword','Nova password de administração','password']];
+const gs=[['name','Nome do dispositivo'],['ssid','Rede Wi-Fi (SSID)'],['wifiPassword','Password Wi-Fi','password']];
 const hs=[['bmeEnabled','Ativar BME280','checkbox'],['sda','GPIO SDA BME280 / I²C partilhado','number'],['scl','GPIO SCL BME280 / I²C partilhado','number'],['bmeAddress','Endereço BME280: 118 ou 119','number'],['oneWire','GPIO DS18B20 (-1 desativa)','number'],['oledEnabled','Ativar OLED','checkbox'],['oledSda','GPIO SDA OLED (-1 partilha I²C)','number'],['oledScl','GPIO SCL OLED (-1 partilha I²C)','number'],['oledAddress','Endereço OLED: 60 ou 61','number'],['oledReset','GPIO reset OLED (-1 sem reset)','number'],['oledHeight','Altura OLED: 32 ou 64','number'],['sampleMs','Leitura dos sensores (ms)','number']];
 const ks=[['knxEnabled','Ativar ligação KNX','checkbox'],['gateway','IPv4 do knxd'],['port','Porta KNX','number'],['rate','Limite de telegramas/segundo','number']];
 const cs=[['name','Nome'],['enabled','Publicar no KNX','checkbox'],['group','Grupo KNX (principal 0–15)'],['offset','Correção de leitura','number','any'],['periodic','Envio periódico','checkbox'],['periodMs','Período de envio (ms)','number'],['onChange','Envio por variação','checkbox'],['delta','Variação mínima','number','any'],['minGapMs','Intervalo mínimo (ms)','number']];
