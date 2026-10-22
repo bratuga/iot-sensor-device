@@ -15,7 +15,12 @@ um teste de compilação. Não contém o programa antigo com Wi-Fi/OLED/consola.
 
 Confirmar a tensão admissível de cada módulo antes de ligar. O barramento do
 ESP32 usa lógica de 3,3 V. BME280 e OLED podem partilhar SDA/SCL se os endereços
-I2C forem diferentes; usar massa comum. O firmware permite BME280 em 0x76/0x77
+I2C forem diferentes; usar massa comum. Para um OLED integrado noutros GPIO,
+configurar SDA/SCL OLED separadamente; -1 nos dois campos partilha o barramento
+principal. O diagnóstico Web e série apresenta os endereços detetados em cada
+barramento configurado (0x76/0x77 para BME280, 0x3C/0x3D para OLED). Um endereço
+ausente aponta para pinos, alimentação ou ligações; a presença não garante que
+o controlador do módulo seja o esperado. O firmware permite BME280 em 0x76/0x77
 (decimal 118/119) e OLED SSD1306 em 0x3C/0x3D (decimal 60/61).
 
 Os DS18B20 usam alimentação externa de três fios, partilham um GPIO OneWire e
