@@ -1,4 +1,5 @@
 #include "Config.h"
+#include "HeatingCore.h"
 #include "Bme280Direct.h"
 #include "WebUi.h"
 // Optional private build settings. include/secrets.h is excluded by .gitignore.
@@ -47,6 +48,8 @@ IPAddress boundIp;
 bool serialOverflow = false;
 String csrf, lastEvent = "Arranque", apName, serialLine;
 String detectedRom[8];
+heating::Layout heatingLayout;
+String heatingZones[heating::Zones] = {"Quarto 1", "Quarto 2", "Casa de banho 1", "Casa de banho 2", "Closet"};
 unsigned romCount = 0;
 String logs[12];
 unsigned logCount = 0, logNext = 0;
@@ -499,6 +502,54 @@ bool mutation() {
   }
   return true;
 }
+void heatingJson(JsonDocument &d) {
+  d["outputsEnabled"] = false;
+  d["pumpState"] = "desconhecido";
+  JsonArray zones = d.createNestedArray("zones");
+  for (const auto &name : heatingZones) zones.add(name);
+  JsonArray circuits = d.createNestedArray("circuits");
+  for (unsigned i = 0; i < heating::Circuits; ++i) {
+    JsonObject item = circuits.createNestedObject();
+    item["position"] = int(heatingLayout.position[i]);
+    item["zone"] = int(heatingLayout.zone[i]);
+    item["state"] = "desconhecido";
+  }
+}
+bool parseHeating(JsonDocument &d, heating::Layout &layout, String names[heating::Zones]) {
+  if (!d["zones"].is<JsonArray>() || d["zones"].size() != heating::Zones ||
+      !d["circuits"].is<JsonArray>() || d["circuits"].size() != heating::Circuits)
+    return false;
+  for (unsigned i = 0; i < heating::Zones; ++i) {
+    if (!d["zones"][i].is<const char *>()) return false;
+    names[i] = d["zones"][i].as<String>();
+    names[i].trim();
+    if (names[i].length() < 1 || names[i].length() > 32) return false;
+  }
+  for (unsigned i = 0; i < heating::Circuits; ++i) {
+    JsonObject item = d["circuits"][i];
+    if (!item["position"].is<int>() || !item["zone"].is<int>()) return false;
+    int position = item["position"], zone = item["zone"];
+    if (position < -1 || position >= 8 || zone < 0 || zone >= int(heating::Zones))
+      return false;
+    layout.position[i] = position;
+    layout.zone[i] = zone;
+  }
+  return layout.valid();
+}
+void loadHeating() {
+  Preferences p;
+  if (!p.begin("heating", true)) return;
+  String serialized = p.getString("layout", "");
+  p.end();
+  if (serialized.isEmpty()) return;
+  DynamicJsonDocument d(2048);
+  if (deserializeJson(d, serialized)) return;
+  heating::Layout next;
+  String names[heating::Zones];
+  if (!parseHeating(d, next, names)) return;
+  heatingLayout = next;
+  for (unsigned i = 0; i < heating::Zones; ++i) heatingZones[i] = names[i];
+}
 void setupWeb() {
   const char *headers[] = {"X-CSRF-Token"};
   web.collectHeaders(headers, 1);
@@ -507,6 +558,35 @@ void setupWeb() {
     web.sendHeader("Cache-Control", "no-store");
     web.sendHeader("X-Frame-Options", "DENY");
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
+  });
+  web.on("/api/heating/layout", HTTP_GET, [] {
+    if (!auth()) return;
+    DynamicJsonDocument d(2048);
+    heatingJson(d);
+    sendJson(d);
+  });
+  web.on("/api/heating/layout", HTTP_POST, [] {
+    if (!mutation()) return;
+    if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
+    String body = web.arg("plain");
+    if (body.length() > 2048) { error(413, "Mapa demasiado grande"); return; }
+    DynamicJsonDocument d(2048);
+    if (deserializeJson(d, body)) { error(400, "JSON invalido"); return; }
+    heating::Layout next;
+    String names[heating::Zones];
+    if (!parseHeating(d, next, names)) {
+      error(400, "Divisao, circuito ou posicao repetida/invalida"); return;
+    }
+    Preferences p;
+    if (!p.begin("heating", false)) { error(500, "NVS indisponivel"); return; }
+    bool saved = p.putString("layout", body) == body.length();
+    p.end();
+    if (!saved) { error(500, "Nao foi possivel guardar o mapa"); return; }
+    heatingLayout = next;
+    for (unsigned i = 0; i < heating::Zones; ++i) heatingZones[i] = names[i];
+    DynamicJsonDocument response(2048);
+    heatingJson(response);
+    sendJson(response);
   });
   web.on("/api/config", HTTP_GET, [] {
     if (!auth()) return;
@@ -737,6 +817,7 @@ void setup() {
 #ifdef LOCAL_WIFI_PASSWORD
   if (config.wifiPassword.isEmpty()) config.wifiPassword = LOCAL_WIFI_PASSWORD;
 #endif
+  loadHeating();
   initRelays();
   csrf = randomSecret();
   WiFi.mode(WIFI_STA);
