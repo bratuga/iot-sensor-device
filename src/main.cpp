@@ -475,7 +475,7 @@ void error(int code, const String &msg) {
   sendJson(d, code);
 }
 bool authenticated() {
-  return web.authenticate("admin", config.adminPassword.c_str());
+  return web.authenticate("admin", apPassword());
 }
 bool auth() {
   if (authenticated())
@@ -683,7 +683,7 @@ void serialCommands() {
     } else if (line == "SETUP") {
       openAp();
       Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      Serial.println("Password admin Web: " + config.adminPassword);
+      Serial.println(String("Password admin Web: ") + apPassword());
     } else if (line == "REBOOT") {
       scheduleRestart();
     } else {
