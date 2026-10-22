@@ -212,12 +212,27 @@ String scanI2c(TwoWire &bus) {
   }
   return found.length() ? found : "nenhum";
 }
+String bmeChipId(TwoWire &bus, bool repeatedStart) {
+  uint8_t address = config.bmeAddress;
+  bus.beginTransmission(address);
+  bus.write(uint8_t(0xD0));
+  uint8_t error = bus.endTransmission(!repeatedStart);
+  if (error != 0) return "escrita falhou: " + String(error);
+  if (bus.requestFrom(address, uint8_t(1)) != 1) return "leitura falhou";
+  char result[7];
+  snprintf(result, sizeof(result), "0x%02X", bus.read());
+  return String(result);
+}
 void initSensors() {
   bool sharedOled = config.oledEnabled && config.oledSda < 0;
   if (config.bmeEnabled || sharedOled) {
     Wire.begin(config.sda, config.scl);
     Wire.setTimeOut(25);
     bmeI2cScan = scanI2c(Wire);
+    if (config.bmeEnabled) {
+      Serial.println("BME ID repeated-start: " + bmeChipId(Wire, true));
+      Serial.println("BME ID com STOP: " + bmeChipId(Wire, false));
+    }
     Serial.println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
                    " encontrados=" + bmeI2cScan);
   }
@@ -233,6 +248,9 @@ void initSensors() {
   }
   if (config.bmeEnabled) {
     bmeOk = bme.begin(config.bmeAddress, &Wire);
+    if (!bmeOk)
+      Serial.println("BME apos begin: " + bmeChipId(Wire, false) +
+                     " | scan: " + scanI2c(Wire));
     if (bmeOk)
       bme.setSampling(Adafruit_BME280::MODE_NORMAL, Adafruit_BME280::SAMPLING_X1,
                       Adafruit_BME280::SAMPLING_X1, Adafruit_BME280::SAMPLING_X1,
