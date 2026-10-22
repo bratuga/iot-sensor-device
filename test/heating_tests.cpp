@@ -27,6 +27,15 @@ static void start(Controller &c, uint32_t now = 0) {
   feedback(c, Pump, true, now + 10);
 }
 int main() {
+  { Layout layout;
+    assert(layout.valid());
+    for (unsigned i = 0; i < Circuits; ++i) layout.position[i] = int8_t(i);
+    assert(layout.valid()); // eighth manifold position is unused
+    layout.position[6] = layout.position[0]; assert(!layout.valid());
+    layout.position[6] = 7; assert(layout.valid());
+    layout.zone[6] = Zones; assert(!layout.valid());
+    layout.zone[6] = 4; layout.position[6] = -2; assert(!layout.valid());
+  }
   { Controller c; assert(!c.commission(0)); assert(c.phase() == Phase::Unconfigured); }
   { Controller c(timing()); boot(c);
     ManualRequest r; r.pumpPermit = true;
