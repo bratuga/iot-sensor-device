@@ -227,3 +227,31 @@ canais por divisão. O mapeamento `ZoneForCircuit` deste núcleo continua a ser 
 proposta fixa para testes; criação dinâmica de divisões, edição das associações,
 persistência e interface Web ainda não estão implementadas. Esta confirmação não
 atribui grupos KNX, GPIO nem ligações físicas.
+
+## Interface do coletor e associação de divisões
+
+O painel Web mostra as oito posições físicas observadas na fotografia do coletor,
+na ordem da esquerda para a direita, e reserva uma delas para ficar sem circuito.
+Os sete circuitos lógicos podem ser associados a posições distintas e a uma das
+cinco divisões. O mapa é guardado numa chave NVS separada (`heating/layout`),
+sem alterar o schema 2 nem as configurações existentes do BME280, Wi-Fi ou KNX.
+
+O painel principal contém a representação dos caudalímetros, retorno, bomba e
+circuitos agrupados por divisão. A vista **Configurações** contém a edição dos
+nomes e associações, sensores, KNX, relés e OTA. As associações são validadas
+antes da gravação: posições 1–8, sem repetição entre os sete circuitos;
+`Por atribuir` é permitido. A oitava posição pode continuar livre.
+
+Os indicadores de bomba e circuitos mostram **estado desconhecido** e os botões
+de aquecimento estão inativos nesta fase. A fotografia mostra tampas brancas nas
+válvulas, sem atuadores elétricos visíveis. Uma posição mapeada não comprova que
+tenha atuador, feedback ou alimentação. O novo endpoint de configuração nunca
+envia telegramas nem modifica GPIO. O controlador portátil de `HeatingCore.h`
+continua desacoplado do runtime até serem definidos e verificados os canais do
+atuador KNX e a política de confirmação de abertura/paragem.
+
+Para a fase de controlo físico: identificar a posição não usada; relacionar as
+outras sete com os circuitos reais; fornecer os canais/grupos KNX de comando e
+estado da bomba e de cada válvula, o tipo NC/NO e os tempos reais; confirmar como
+a bomba recebe alimentação e se existe confirmação física ou interlock. Só então
+ligar os botões do painel ao sequenciador com a bomba OFF antes de fechar válvulas.
