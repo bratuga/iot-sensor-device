@@ -2,10 +2,11 @@
 #include <Arduino.h>
 static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <html lang="pt"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MySmartHouse · Sensor KNX</title>
-<style>:root{color-scheme:dark;--bg:#111820;--panel:#1b2631;--line:#344351;--accent:#78d9c0}*{box-sizing:border-box}body{margin:0 auto;padding:24px;max-width:1050px;font:16px system-ui;background:var(--bg);color:#e8eef5}h1{font-size:28px;margin-bottom:6px}h2{font-size:20px}p,small{color:#adbdcd}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.card,section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0}.value{font-size:28px;font-weight:600}label{display:block;font-size:14px;margin:10px 0}input,select,button{font:inherit;border-radius:6px;border:1px solid var(--line);padding:9px;background:#101922;color:inherit;width:100%}input[type=checkbox]{width:auto;margin-right:8px}button{background:var(--accent);color:#10251f;cursor:pointer;font-weight:600;width:auto}button:disabled{opacity:.5}summary{cursor:pointer;font-weight:600}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}#msg{position:sticky;top:0;background:#253e43;padding:10px;border-radius:6px;display:none}a{color:var(--accent)}fieldset{border:1px solid var(--line);border-radius:8px;margin:12px 0}footer{color:#adbdcd;font-size:13px}input:focus,button:focus{outline:2px solid var(--accent)}</style>
-<h1>Sensor KNX</h1><p id="connection">A ligar ao dispositivo…</p><div id="msg" role="status"></div><div class="grid" id="readings"></div>
+<style>:root{color-scheme:dark;--bg:#111820;--panel:#1b2631;--line:#344351;--accent:#78d9c0}*{box-sizing:border-box}body{margin:0 auto;padding:24px;max-width:1050px;font:16px system-ui;background:var(--bg);color:#e8eef5}h1{font-size:28px;margin-bottom:6px}h2{font-size:20px}p,small{color:#adbdcd}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.card,section{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin:16px 0}.value{font-size:28px;font-weight:600}label{display:block;font-size:14px;margin:10px 0}input,select,button{font:inherit;border-radius:6px;border:1px solid var(--line);padding:9px;background:#101922;color:inherit;width:100%}input[type=checkbox]{width:auto;margin-right:8px}button{background:var(--accent);color:#10251f;cursor:pointer;font-weight:600;width:auto}button:disabled{opacity:.5}summary{cursor:pointer;font-weight:600}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px}#msg{position:sticky;top:0;background:#253e43;padding:10px;border-radius:6px;display:none}a{color:var(--accent)}fieldset{border:1px solid var(--line);border-radius:8px;margin:12px 0}footer{color:#adbdcd;font-size:13px}input:focus,button:focus{outline:2px solid var(--accent)}.manifold{margin:16px 0;overflow-x:auto}.manifold-bar{background:#a9763d;color:#1b140e;border:2px solid #d8ad67;border-radius:12px;padding:11px 18px;font-weight:700;min-width:760px}.branches{display:grid;grid-template-columns:repeat(8,minmax(90px,1fr));gap:7px;min-width:760px;padding:8px 0}.branch{text-align:center;background:#17232d;border:1px solid var(--line);border-radius:10px;padding:9px 4px;min-height:112px}.flowmeter{margin:auto auto 6px;width:19px;height:28px;border:2px solid #adcad7;border-radius:5px;background:#e6f1f2;color:#15232b;font-size:11px}.pipe{width:4px;height:15px;margin:3px auto;background:#b99256}.branch strong{display:block;font-size:13px}.branch small{display:block}.branch.unused{opacity:.5}.state-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#89949c;margin-right:4px}.pump{margin:8px 0 12px;border:1px solid var(--line);border-radius:8px;padding:10px;display:inline-block}.plan-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.plan-fields fieldset{margin:0}.plan-fields select{width:100%}[hidden]{display:none!important}.topnav{display:flex;gap:8px;margin:16px 0}.topnav button{background:#263c48;color:#e8eef5}.topnav button.selected{background:var(--accent);color:#10251f}.room{border:1px solid var(--line);border-radius:9px;padding:12px;margin:8px 0}.room h3{margin:0 0 9px}.room-circuits{display:flex;flex-wrap:wrap;gap:8px}.room-circuit{background:#101922;border:1px solid var(--line);border-radius:7px;padding:9px;min-width:170px}.room-circuit button{display:block;margin-top:8px}</style>
+<h1>Sensor KNX</h1><p id="connection">A ligar ao dispositivo…</p><div id="msg" role="status"></div><nav class="topnav" aria-label="Navegação"><button type="button" id="viewDashboard">Painel e controlo</button><button type="button" id="viewSettings">Configurações</button></nav><main id="dashboardArea"><div class="grid" id="readings"></div>
 <section><h2>Estado e diagnóstico</h2><pre id="status"></pre><details><summary>Telegramas recebidos</summary><pre id="telegrams">Sem dados</pre></details><p>Sondas detetadas: <span id="roms">—</span></p></section>
 <section><h2>Saídas · relés</h2><div class="grid" id="outputs"></div><p>O feedback KNX indica o estado comandado. Durante falhas de rede, o comando local continua disponível e o estado é publicado ao recuperar a ligação.</p></section>
+<section id="heating"><h2>Aquecimento · divisões</h2><div id="rooms"></div><h2>Coletor · 7 circuitos e bomba</h2><p>Vista das 8 posições do coletor, da esquerda para a direita na fotografia. Uma posição fica sem circuito. Estado real: desconhecido até associar atuadores e feedback KNX; este mapa não liga saídas.</p><div class="pump"><span class="state-dot"></span>Bomba · estado desconhecido</div><div class="manifold"><div class="manifold-bar">IDA · caudalímetros</div><div id="branches" class="branches"></div><div class="manifold-bar">RETORNO · válvulas</div></div></section></main><main id="settingsArea" hidden><section><h2>Mapa do coletor</h2><p>Associa os sete circuitos às oito posições físicas. A posição não atribuída permanece livre.</p><div id="zoneFields" class="plan-fields"></div><div id="circuitFields" class="plan-fields"></div><p><button type="button" id="saveHeating">Guardar mapa do coletor</button></p><small>O mapa é guardado à parte das configurações dos sensores. Não envia comandos à bomba ou às válvulas.</small></section>
 <form id="settings"><section><h2>Configuração</h2><p>Os pinos começam desativados. Confirma a revisão da placa antes de os atribuir. Guardar reinicia o dispositivo.</p><div class="grid" id="general"></div>
 <details open><summary>Sensores e OLED</summary><div class="grid" id="hardware"></div><p>OLED SSD1306 I2C, 128×32 ou 128×64. DS18B20 com alimentação de 3 fios. Os endereços ROM identificam cada sonda, mesmo que a ordem de deteção mude.</p></details>
 <details open><summary>Publicação KNX</summary><div class="grid" id="knx"></div><div id="channels"></div></details>
@@ -13,7 +14,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <button type="submit">Guardar e reiniciar</button> <button type="button" id="export">Exportar sem passwords</button>
 <p>Exportação para consulta; introduz as alterações nos campos desta página. As passwords vazias mantêm o valor atual.</p></section></form>
 <section><h2>Atualizar firmware</h2><p>Seleciona o firmware.bin compilado para este perfil ESP32. Mantém a alimentação durante a atualização.</p><input id="firmware" type="file" accept=".bin"><p><button id="update">Instalar atualização OTA</button></p><progress id="progress" max="100" value="0" hidden></progress></section>
-<footer>MySmartHouse · firmware de testes · acesso Web sem password durante os testes</footer>
+</main><footer>MySmartHouse · firmware de testes · acesso Web sem password durante os testes</footer>
 <script>
 'use strict';let cfg,csrf='',busy=false;
 const $=id=>document.getElementById(id);const show=s=>{$('msg').textContent=s;$('msg').style.display='block'};
@@ -24,6 +25,64 @@ const hs=[['bmeEnabled','Ativar BME280','checkbox'],['sda','GPIO SDA BME280 / I�
 const ks=[['knxEnabled','Ativar ligação KNX','checkbox'],['gateway','IPv4 do knxd'],['port','Porta KNX','number'],['rate','Limite de telegramas/segundo','number']];
 const cs=[['name','Nome'],['enabled','Publicar no KNX','checkbox'],['group','Grupo KNX (principal 0–15)'],['offset','Correção de leitura','number','any'],['periodic','Envio periódico','checkbox'],['periodMs','Período de envio (ms)','number'],['onChange','Envio por variação','checkbox'],['delta','Variação mínima','number','any'],['minGapMs','Intervalo mínimo (ms)','number']];
 const rs=[['name','Nome'],['enabled','Ativar saída','checkbox'],['gpio','GPIO (-1 desativa)','number'],['activeLow','Ativo a nível baixo','checkbox'],['commandGroup','Grupo KNX de comando'],['feedbackGroup','Grupo KNX de feedback']];
+function view(name){
+  const settings=name==='settings';
+  $('dashboardArea').hidden=settings;$('settingsArea').hidden=!settings;
+  $('viewDashboard').classList.toggle('selected',!settings);
+  $('viewSettings').classList.toggle('selected',settings);
+  location.hash=settings?'configuracoes':'painel';
+}
+$('viewDashboard').onclick=()=>view('dashboard');
+$('viewSettings').onclick=()=>view('settings');
+view(location.hash==='#configuracoes'?'settings':'dashboard');
+let heatingPlan=null;
+function renderHeating(){
+  if(!heatingPlan)return;
+  $('branches').textContent='';$('zoneFields').textContent='';$('circuitFields').textContent='';$('rooms').textContent='';
+  heatingPlan.zones.forEach((name,z)=>{
+    const card=document.createElement('div'),heading=document.createElement('h3'),items=document.createElement('div');
+    card.className='room';heading.textContent=name;items.className='room-circuits';
+    heatingPlan.circuits.forEach((c,i)=>{
+      if(c.zone!==z)return;
+      const slot=document.createElement('div'),title=document.createElement('strong'),status=document.createElement('small'),button=document.createElement('button');
+      slot.className='room-circuit';title.textContent='Circuito '+(i+1)+(c.position>=0?' · posição '+(c.position+1):' · por atribuir');
+      status.textContent=' · Estado desconhecido';button.textContent='Ligar';button.disabled=true;
+      button.title='Aguarda associação dos atuadores e feedback KNX';
+      slot.append(title,status,button);items.append(slot);
+    });
+    card.append(heading,items);$('rooms').append(card);
+  });
+  for(let p=0;p<8;p++){
+    const i=heatingPlan.circuits.findIndex(c=>c.position===p),card=document.createElement('div');
+    card.className='branch'+(i<0?' unused':'');
+    const meter=document.createElement('div');meter.className='flowmeter';meter.textContent=String(p+1);
+    const label=document.createElement('strong');label.textContent=i<0?'Sem circuito':heatingPlan.zones[heatingPlan.circuits[i].zone]+' · C'+(i+1);
+    const pipe=document.createElement('div');pipe.className='pipe';
+    const state=document.createElement('small');state.textContent=i<0?'Não atribuída':'Estado desconhecido';
+    card.append(meter,label,pipe,state);$('branches').append(card);
+  }
+  heatingPlan.zones.forEach((name,i)=>field('zoneFields','zone'+i,'Divisão '+(i+1),name));
+  heatingPlan.circuits.forEach((c,i)=>{
+    const box=document.createElement('fieldset'),legend=document.createElement('legend');legend.textContent='Circuito '+(i+1);
+    const zone=document.createElement('select');zone.id='circuitZone'+i;
+    for(let j=0;j<5;j++){const o=document.createElement('option');o.value=String(j);o.textContent=heatingPlan.zones[j];zone.append(o);}
+    zone.value=String(c.zone);
+    const pos=document.createElement('select');pos.id='circuitPosition'+i;
+    for(let j=-1;j<8;j++){const o=document.createElement('option');o.value=String(j);o.textContent=j<0?'Por atribuir':'Posição '+(j+1);pos.append(o);}
+    pos.value=String(c.position);
+    box.append(legend,zone,pos);$('circuitFields').append(box);
+  });
+}
+$('saveHeating').onclick=async()=>{
+  if(busy||!heatingPlan)return;
+  busy=true;
+  try{
+    const zones=heatingPlan.zones.map((_,i)=>$('zone'+i).value.trim());
+    const circuits=heatingPlan.circuits.map((_,i)=>({zone:Number($('circuitZone'+i).value),position:Number($('circuitPosition'+i).value)}));
+    heatingPlan=await api('/api/heating/layout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({zones,circuits})});
+    renderHeating();show('Mapa do coletor guardado. Saídas físicas continuam desativadas.');
+  }catch(e){show(e.message);}finally{busy=false;}
+};
 function renderRelays(){ $('relaySettings').textContent='';cfg.relays.forEach((r,i)=>{const f=document.createElement('fieldset'),l=document.createElement('legend'),g=document.createElement('div');l.textContent='Relé '+(i+1);g.id='relay'+i;g.className='grid';f.append(l,g);$('relaySettings').append(f);for(const[k,label,t]of rs)field(g.id,'r'+i+'_'+k,label,r[k],t);});}
 async function switchRelay(index,on){if(busy)return;busy=true;try{await api('/api/relay',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({index,on})});show('Comando aplicado; feedback KNX será enviado quando houver ligação.');}catch(e){show(e.message);}finally{busy=false;await refresh();}}
 function value(id,type){return type==='checkbox'?$(id).checked:type==='number'?Number($(id).value):$(id).value;}
@@ -32,5 +91,5 @@ $('settings').onsubmit=async e=>{e.preventDefault();if(busy)return;busy=true;try
 $('export').onclick=()=>{const b=new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='sensor-config-sem-passwords.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 $('update').onclick=()=>{if(busy)return;const file=$('firmware').files[0];if(!file){show('Seleciona um ficheiro .bin.');return;}if(!confirm('Instalar este firmware e reiniciar?'))return;busy=true;const data=new FormData();data.append('firmware',file);const x=new XMLHttpRequest();x.open('POST','/api/update');x.setRequestHeader('X-CSRF-Token',csrf);x.upload.onprogress=e=>{if(e.lengthComputable){$('progress').hidden=false;$('progress').value=e.loaded/e.total*100;}};x.onload=()=>{show(x.status===200?'Atualização concluída. O dispositivo vai reiniciar.':'Atualização recusada ou falhou: '+x.responseText);busy=false;};x.onerror=()=>{show('Ligação interrompida. Confirma o estado do dispositivo.');busy=false;};x.send(data);};
 async function refresh(){if(busy)return;try{const s=await api('/api/status');$('connection').textContent=s.name+' · '+s.ip+' · KNX '+s.knx;$('status').textContent='Wi-Fi: '+s.rssi+' dBm | memória livre: '+s.freeHeap+' bytes\nUptime: '+Math.floor(s.uptimeMs/1000)+' s | BME280: '+(s.bme?'detetado':'ausente/desativado')+' | OLED: '+(s.oled?'ativo':'ausente/desativado')+'\nI²C principal: '+(s.i2cMain||'não iniciado')+' | I²C OLED: '+(s.i2cOled||'não iniciado')+'\nKNX individual: '+s.individual+' | enviados: '+s.sent+' | confirmados: '+s.acked+' | falhas: '+s.failed+'\n'+s.lastEvent;$('readings').textContent='';s.channels.forEach(c=>{const d=document.createElement('div');d.className='card';const title=document.createElement('div'),v=document.createElement('div');title.textContent=c.name;v.className='value';v.textContent=c.valid?c.value.toFixed(c.unit==='Pa'?0:1)+' '+c.unit:'Sem leitura';d.append(title,v);$('readings').append(d);});$('outputs').textContent='';s.relays.forEach((r,i)=>{const d=document.createElement('div');d.className='card';const title=document.createElement('strong'),p=document.createElement('p'),b=document.createElement('button');title.textContent=r.name;p.textContent=r.enabled?(r.on?'Ligado':'Desligado')+' · GPIO '+r.gpio+(r.feedbackPending?' · feedback pendente':' · feedback enviado'):'Desativado';b.textContent=r.on?'Desligar':'Ligar';b.disabled=!r.enabled;b.onclick=()=>switchRelay(i,!r.on);d.append(title,p,b);$('outputs').append(d);});$('roms').textContent=s.roms.join(', ')||'Nenhuma; configura o GPIO e reinicia';$('telegrams').textContent=s.telegrams.join('\n')||'Ainda não foram recebidos telegramas';}catch(e){$('connection').textContent='Sem ligação — '+e.message;}}
-(async()=>{try{const r=await api('/api/config');cfg=r.config;csrf=r.csrf;render();renderRelays();await refresh();setInterval(refresh,3000);}catch(e){show(e.message);}})();
+(async()=>{try{const r=await api('/api/config');cfg=r.config;csrf=r.csrf;render();renderRelays();heatingPlan=await api('/api/heating/layout');renderHeating();await refresh();setInterval(refresh,3000);}catch(e){show(e.message);}})();
 </script></html>)HTML";
