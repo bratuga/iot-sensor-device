@@ -228,11 +228,11 @@ void initSensors() {
   if (config.bmeEnabled || sharedOled) {
     Wire.setPins(config.sda, config.scl);
     Wire.begin();
-    Wire.setTimeOut(25);
+    Wire.setClock(50000);
+    Wire.setTimeOut(50);
+    delay(50);
     bmeI2cScan = scanI2c(Wire);
-    if (config.bmeEnabled) {
-      Serial.println("BME ID com STOP: " + bmeChipId(Wire, false));
-    }
+    delay(10);
     Serial.println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
                    " encontrados=" + bmeI2cScan);
   }
