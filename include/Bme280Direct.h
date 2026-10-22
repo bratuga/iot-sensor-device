@@ -99,21 +99,33 @@ class Bme280Direct {
   static int16_t sign12(uint16_t v) { return (v & 0x800) ? int16_t(v | 0xf000) : int16_t(v); }
   bool write(uint8_t reg, uint8_t value) {
     lastRegister_ = reg;
-    bus_->beginTransmission(address_);
-    bus_->write(reg); bus_->write(value);
-    return bus_->endTransmission() == 0;
+    for (unsigned attempt = 0; attempt < 4; ++attempt) {
+      bus_->beginTransmission(address_);
+      bus_->write(reg); bus_->write(value);
+      if (bus_->endTransmission(true) == 0) return true;
+      delay(5);
+    }
+    return false;
   }
   bool read(uint8_t reg, uint8_t *bytes, size_t count) {
-    // Small transfers avoid long I2C reads. End the register-select write
-    // with STOP before reading; this board fails non-stop write/read requests.
+    // Short transfers avoid a non-stop write/read on this board. In forced
+    // mode the ADC values remain unchanged while reading several chunks.
     for (size_t offset = 0; offset < count; offset += 2) {
       uint8_t part = uint8_t(count - offset >= 2 ? 2 : 1);
       lastRegister_ = uint8_t(reg + offset);
-      bus_->beginTransmission(address_);
-      bus_->write(lastRegister_);
-      if (bus_->endTransmission(true) != 0) return false;
-      if (bus_->requestFrom(address_, part) != part) return false;
-      for (uint8_t i = 0; i < part; ++i) bytes[offset + i] = bus_->read();
+      bool received = false;
+      for (unsigned attempt = 0; attempt < 4; ++attempt) {
+        bus_->beginTransmission(address_);
+        bus_->write(lastRegister_);
+        if (bus_->endTransmission(true) == 0 &&
+            bus_->requestFrom(address_, part) == part) {
+          for (uint8_t i = 0; i < part; ++i) bytes[offset + i] = bus_->read();
+          received = true;
+          break;
+        }
+        delay(5);
+      }
+      if (!received) return false;
     }
     return true;
   }
