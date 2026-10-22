@@ -226,7 +226,8 @@ String bmeChipId(TwoWire &bus, bool repeatedStart) {
 void initSensors() {
   bool sharedOled = config.oledEnabled && config.oledSda < 0;
   if (config.bmeEnabled || sharedOled) {
-    Wire.begin(config.sda, config.scl);
+    Wire.setPins(config.sda, config.scl);
+    Wire.begin();
     Wire.setTimeOut(25);
     bmeI2cScan = scanI2c(Wire);
     if (config.bmeEnabled) {
@@ -237,7 +238,8 @@ void initSensors() {
                    " encontrados=" + bmeI2cScan);
   }
   if (config.oledEnabled && !sharedOled) {
-    oledWire.begin(config.oledSda, config.oledScl);
+    oledWire.setPins(config.oledSda, config.oledScl);
+    oledWire.begin();
     oledWire.setTimeOut(25);
     displayBus = &oledWire;
     oledI2cScan = scanI2c(oledWire);
