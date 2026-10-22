@@ -7,6 +7,24 @@
 namespace heating {
 constexpr unsigned Circuits = 7, Zones = 5, Pump = 7, Outputs = 8;
 constexpr std::array<unsigned, Circuits> ZoneForCircuit{{0, 0, 1, 1, 2, 3, 4}};
+// The manifold has eight positions; seven logical circuits may be assigned.
+// An unassigned position (-1) never implies a live actuator.
+struct Layout {
+  std::array<int8_t, Circuits> position{};
+  std::array<uint8_t, Circuits> zone{{0, 0, 1, 1, 2, 3, 4}};
+  Layout() { position.fill(-1); }
+  bool valid() const {
+    bool used[8] = {};
+    for (unsigned i = 0; i < Circuits; ++i) {
+      if (zone[i] >= Zones || position[i] < -1 || position[i] >= 8) return false;
+      if (position[i] >= 0) {
+        if (used[position[i]]) return false;
+        used[position[i]] = true;
+      }
+    }
+    return true;
+  }
+};
 inline uint32_t age(uint32_t now, uint32_t then) { return now - then; }
 inline bool duration(uint32_t ms) { return ms > 0 && ms < 0x80000000u; }
 enum class Backend { Unassigned, Local, Knx };
