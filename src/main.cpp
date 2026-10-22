@@ -251,8 +251,9 @@ void initSensors() {
   if (config.bmeEnabled) {
     bmeOk = bme.begin(config.bmeAddress, Wire);
     if (!bmeOk)
-      Serial.println("BME apos begin: " + bmeChipId(Wire, false) +
-                     " | scan: " + scanI2c(Wire));
+      Serial.println("BME falha: " + String(bme.lastError()) +
+                     " reg=0x" + String(bme.lastRegister(), HEX) +
+                     " | ID: " + bmeChipId(Wire, false) + " | scan: " + scanI2c(Wire));
     Serial.println(bmeOk ? "BME280: pronto" : "BME280: inicializacao falhou");
   }
   if (config.oneWire >= 0) {
@@ -312,8 +313,12 @@ void sampleSensors(uint32_t now) {
       setReading(0, t, ok, now);
       setReading(1, h, ok, now);
       setReading(2, p, ok, now);
-      if (!ok)
+      if (!ok) {
+        Serial.println("BME amostra falhou: " + String(bme.lastError()) +
+                       " reg=0x" + String(bme.lastRegister(), HEX) +
+                       " T=" + String(t) + " H=" + String(h) + " P=" + String(p));
         bmeOk = false;
+      }
     }
   }
   if (ds && !converting) {
