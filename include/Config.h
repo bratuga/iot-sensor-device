@@ -20,7 +20,8 @@ struct Config {
   bool knxEnabled = false, bmeEnabled = false, oledEnabled = false;
   String gateway;
   uint16_t port = 3671, rate = 5;
-  int sda = -1, scl = -1, oneWire = -1, oledReset = -1, oledHeight = 64;
+  int sda = -1, scl = -1, oledSda = -1, oledScl = -1;
+  int oneWire = -1, oledReset = -1, oledHeight = 64;
   uint8_t bmeAddress = 0x76, oledAddress = 0x3c;
   uint32_t sampleMs = 5000;
   String rom[2];
