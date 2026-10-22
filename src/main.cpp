@@ -427,7 +427,8 @@ void error(int code, const String &msg) {
   sendJson(d, code);
 }
 bool authenticated() {
-  return web.authenticate("admin", config.adminPassword.c_str());
+  // Temporary test firmware: Web settings do not require a password.
+  return true;
 }
 bool auth() {
   if (authenticated())
@@ -666,6 +667,8 @@ void setup() {
   Serial.begin(115200);
   bootAt = millis();
   bool configured = loadConfig(config);
+  Serial.println(configured ? "NVS: configuracao carregada" :
+                              "NVS: configuracao ausente ou invalida; usar valores iniciais");
   if (!configured) {
     config.adminPassword = randomSecret();
     if (!saveConfig(config)) {
@@ -673,13 +676,12 @@ void setup() {
     }
     Serial.println("Primeiro acesso: admin / " + config.adminPassword);
   }
-  // Apply only in RAM, after loading NVS, so existing boards can test these settings.
-  // Saving settings in the Web UI also saves the effective Wi-Fi credentials to NVS.
+  // Private defaults apply only until credentials are saved in NVS.
 #ifdef LOCAL_WIFI_SSID
-  config.ssid = LOCAL_WIFI_SSID;
+  if (config.ssid.isEmpty()) config.ssid = LOCAL_WIFI_SSID;
 #endif
 #ifdef LOCAL_WIFI_PASSWORD
-  config.wifiPassword = LOCAL_WIFI_PASSWORD;
+  if (config.wifiPassword.isEmpty()) config.wifiPassword = LOCAL_WIFI_PASSWORD;
 #endif
   initRelays();
   csrf = randomSecret();
