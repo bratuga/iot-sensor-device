@@ -26,6 +26,8 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["oledEnabled"] = c.oledEnabled;
   d["sda"] = c.sda;
   d["scl"] = c.scl;
+  d["oledSda"] = c.oledSda;
+  d["oledScl"] = c.oledScl;
   d["oneWire"] = c.oneWire;
   d["oledReset"] = c.oledReset;
   d["oledHeight"] = c.oledHeight;
@@ -117,17 +119,34 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
     return bad("IPv4 do servidor KNX invalido");
   c.sda = d["sda"];
   c.scl = d["scl"];
+  c.oledSda = d.containsKey("oledSda") ? d["oledSda"].as<int>() : -1;
+  c.oledScl = d.containsKey("oledScl") ? d["oledScl"].as<int>() : -1;
+  if ((d.containsKey("oledSda") && !d["oledSda"].is<int>()) ||
+      (d.containsKey("oledScl") && !d["oledScl"].is<int>()))
+    return bad("Pinos OLED invalidos");
   c.oneWire = d["oneWire"];
   c.oledReset = d["oledReset"];
   c.oledHeight = d["oledHeight"];
   if ((c.sda != -1 && !pin(c.sda)) || (c.scl != -1 && !pin(c.scl)) ||
+      (c.oledSda != -1 && !pin(c.oledSda)) || (c.oledScl != -1 && !pin(c.oledScl)) ||
       (c.oneWire != -1 && !pin(c.oneWire)) || (c.oledReset != -1 && !pin(c.oledReset)))
     return bad("GPIO nao permitido neste perfil ESP32");
-  if ((c.bmeEnabled || c.oledEnabled) && (!pin(c.sda) || !pin(c.scl) || c.sda == c.scl))
+  if (c.bmeEnabled && (!pin(c.sda) || !pin(c.scl) || c.sda == c.scl))
     return bad("Configura os pinos I2C");
-  if (c.oneWire >= 0 && (c.oneWire == c.sda || c.oneWire == c.scl || c.oneWire == c.oledReset))
+  if ((c.oledSda == -1) != (c.oledScl == -1))
+    return bad("Configura os dois pinos OLED ou deixa ambos em -1");
+  int osda = c.oledSda == -1 ? c.sda : c.oledSda;
+  int oscl = c.oledScl == -1 ? c.scl : c.oledScl;
+  if (c.oledEnabled && (!pin(osda) || !pin(oscl) || osda == oscl))
+    return bad("Configura os pinos I2C do OLED");
+  if (c.bmeEnabled && c.oledEnabled && c.oledSda != -1 &&
+      (osda == c.sda || osda == c.scl || oscl == c.sda || oscl == c.scl))
+    return bad("Barramentos I2C separados nao podem partilhar GPIO");
+  if (c.oneWire >= 0 && ((c.bmeEnabled && (c.oneWire == c.sda || c.oneWire == c.scl)) ||
+      (c.oledEnabled && (c.oneWire == osda || c.oneWire == oscl)) || c.oneWire == c.oledReset))
     return bad("Conflito de GPIO OneWire");
-  if (c.oledReset >= 0 && (c.oledReset == c.sda || c.oledReset == c.scl))
+  if (c.oledEnabled && c.oledReset >= 0 && (c.oledReset == osda || c.oledReset == oscl ||
+      (c.bmeEnabled && (c.oledReset == c.sda || c.oledReset == c.scl))))
     return bad("Conflito de GPIO OLED");
   if (c.oledHeight != 32 && c.oledHeight != 64)
     return bad("Altura OLED: 32 ou 64");
@@ -215,7 +234,8 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
       if (!pin(r.gpio) || !commands[i] || !feedbacks[i])
         return bad("Rele ativo exige GPIO e grupos de comando e feedback");
       if (commands[i] == feedbacks[i]) return bad("Comando e feedback devem ser diferentes");
-      if (((c.bmeEnabled || c.oledEnabled) && (r.gpio == c.sda || r.gpio == c.scl)) ||
+      if ((c.bmeEnabled && (r.gpio == c.sda || r.gpio == c.scl)) ||
+          (c.oledEnabled && (r.gpio == osda || r.gpio == oscl)) ||
           r.gpio == c.oneWire || (c.oledEnabled && r.gpio == c.oledReset))
         return bad("GPIO do rele em conflito com sensor ou OLED");
       for (unsigned j = 0; j < 5; ++j)
