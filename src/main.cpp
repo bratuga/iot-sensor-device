@@ -691,7 +691,7 @@ void serialCommands() {
     } else if (line == "SETUP") {
       openAp();
       Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      Serial.println(String("Password admin Web: ") + apPassword());
+      Serial.println("Web: sem login durante os testes");
     } else if (line == "REBOOT") {
       scheduleRestart();
     } else {
