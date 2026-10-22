@@ -231,7 +231,6 @@ void initSensors() {
     Wire.setTimeOut(25);
     bmeI2cScan = scanI2c(Wire);
     if (config.bmeEnabled) {
-      Serial.println("BME ID repeated-start: " + bmeChipId(Wire, true));
       Serial.println("BME ID com STOP: " + bmeChipId(Wire, false));
     }
     Serial.println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
