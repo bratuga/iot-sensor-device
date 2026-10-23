@@ -73,8 +73,10 @@ TLS, KNX Secure, assinatura de firmware nem rollback automático da aplicação.
 Quatro relés configuráveis pela web, com GPIO, polaridade e grupos KNX de comando/feedback.
 Controlo web e KNX partilham o mesmo estado. Ver [relés e knxd](docs/RELAYS.md).
 
-## Núcleo de aquecimento (preparação, sem saídas ativas)
+## Aquecimento por divisões e coletor KNX
 
-Arquitetura para sete circuitos e uma bomba, controlador manual portátil e testes:
-[docs/HEATING.md](docs/HEATING.md). Ainda não está ligado ao loop, Web ou saídas;
-requer adaptadores e comissionamento antes de controlar equipamentos.
+Até oito circuitos e uma bomba, divisões editáveis e associações de vários circuitos
+por divisão. O painel mostra temperaturas de ida/retorno e indicadores de estado.
+Configuração KNX, controlo automático/manual e sequência de bomba/válvulas:
+[docs/HEATING.md](docs/HEATING.md). O controlo arranca parado e requer configuração
+dos grupos e ativação explícita no painel.

@@ -1,5 +1,6 @@
 #include "Config.h"
 #include "HeatingCore.h"
+#include "HeatingRuntime.h"
 #include "Bme280Direct.h"
 #include "WebUi.h"
 // Optional private build settings. include/secrets.h is excluded by .gitignore.
@@ -48,8 +49,25 @@ IPAddress boundIp;
 bool serialOverflow = false;
 String csrf, lastEvent = "Arranque", apName, serialLine;
 String detectedRom[8];
-heating::Layout heatingLayout;
-String heatingZones[heating::Zones] = {"Quarto 1", "Quarto 2", "Casa de banho 1", "Casa de banho 2", "Closet"};
+heating::RuntimeLayout heatingLayout;
+constexpr unsigned MaxRooms=16;
+unsigned roomCount=0;
+String heatingZones[MaxRooms];
+heating::Runtime heat;
+struct HeatConfig {
+ bool enabled=false;
+ uint16_t command[9]={}, feedback[9]={}, enable[MaxRooms]={}, status[MaxRooms]={}, temperature[MaxRooms]={}, setpoint[MaxRooms]={};
+ uint32_t openMs=120000, maxAgeMs=300000;
+} hc;
+heating::ZoneInput hz[MaxRooms];
+bool zoneEnabled[MaxRooms]={}, zoneDemand[MaxRooms]={};
+int zoneMode[MaxRooms]={}; // 0 automatic, 1 off, 2 manual on (30 minute lease)
+uint32_t zoneManualAt[MaxRooms]={}, heatPoll=0, heatSend=0;
+unsigned heatPollIndex=0;
+uint32_t heatToken=1000, heatPending[9]={};
+bool heatingSafe();
+void heatingTelegram(const knxip::Telegram &t);
+void heatingLoop(uint32_t now);
 unsigned romCount = 0;
 String logs[12];
 unsigned logCount = 0, logNext = 0;
@@ -99,6 +117,7 @@ class Events : public knxip::Listener {
   void onTelegram(const knxip::Telegram &) override;
   void onEvent(knxip::Event e, uint16_t detail) override;
   void onSent(uint32_t token, bool ok) override {
+    for(unsigned i=0;i<9;++i)if(token&&token==heatPending[i]){if(!heat.output[i].sent)continue;heat.output[i].acknowledged=ok;heat.output[i].known=false;if(!ok){heat.output[i].sent=false;heat.trip(millis());}}
     if (token >= 1 && token <= 5)
       readings[token - 1].publication.complete(ok, millis());
     if (token >= 100 && token < 104) relays[token - 100].complete(ok);
@@ -144,6 +163,7 @@ void Events::onTelegram(const knxip::Telegram &t) {
     s += h;
   }
   logTelegram(s);
+  heatingTelegram(t);
   if (updating || restarting) return;
   for (unsigned i = 0; i < 4; ++i) {
     const auto &r = config.relay[i];
@@ -467,6 +487,7 @@ void display(uint32_t now) {
   oled->display();
 }
 void scheduleRestart() {
+  if(!heatingSafe()){Serial.println("Para o aquecimento antes de reiniciar");return;}
   tunnel.stop(millis());
   restarting = true;
   restartAt = millis();
@@ -502,39 +523,124 @@ bool mutation() {
   }
   return true;
 }
+bool heatingSafe() {
+ if (!hc.enabled) return true;
+ if (heat.armed || !heat.confirmed(8,false,millis())) return false;
+ for (unsigned i=0;i<8;++i) if(heatingLayout.zone[i]>=0&&hc.command[i]&&!heat.confirmed(i,false,millis())) return false;
+ return true;
+}
+bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
+ if (!d.containsKey("control")) return true; // migrate mapping-only configuration
+ JsonObject c=d["control"];
+ if(!c["enabled"].is<bool>())return false;
+ n.enabled=c["enabled"]; n.openMs=c["openMs"]|120000u; n.maxAgeMs=c["maxAgeMs"]|300000u;
+ if(n.openMs<1000||n.openMs>600000||n.maxAgeMs<10000||n.maxAgeMs>3600000)return false;
+ if(!c["actuators"].is<JsonArray>()||!c["rooms"].is<JsonArray>()||c["actuators"].size()!=9||c["rooms"].size()!=d["zones"].size())return false;
+ uint16_t used[82]={}; unsigned count=0;
+ auto group=[&](JsonVariant v,uint16_t &g){
+   String text=v.as<String>();
+   if(text.isEmpty()){g=0;return true;}
+   if(!sensor::parseGroup(text.c_str(),g)||!g)return false;
+   for(unsigned i=0;i<count;++i)if(used[i]==g)return false;
+   for(const auto&r:config.relay){uint16_t x;if(r.enabled&&((sensor::parseGroup(r.commandGroup.c_str(),x)&&x==g)||(sensor::parseGroup(r.feedbackGroup.c_str(),x)&&x==g)))return false;}
+   for(const auto&r:config.channel){uint16_t x;if(r.enabled&&sensor::parseGroup(r.group.c_str(),x)&&x==g)return false;}
+   used[count++]=g;return true;
+ };
+ for(unsigned i=0;i<9;++i)if(!group(c["actuators"][i]["command"],n.command[i])||!group(c["actuators"][i]["feedback"],n.feedback[i]))return false;
+ for(unsigned i=0;i<d["zones"].size();++i)if(!group(c["rooms"][i]["enable"],n.enable[i])||!group(c["rooms"][i]["status"],n.status[i])||!group(c["rooms"][i]["temperature"],n.temperature[i])||!group(c["rooms"][i]["setpoint"],n.setpoint[i]))return false;
+ for(unsigned i=0;i<9;++i)if(bool(n.command[i])!=bool(n.feedback[i]))return false;
+ if(n.enabled){
+   if(!n.command[8]||!n.feedback[8])return false;
+   for(unsigned i=0;i<8;++i)if(d["circuits"][i]["zone"].as<int>()>=0&&(!n.command[i]||!n.feedback[i]))return false;
+   for(unsigned i=0;i<d["zones"].size();++i)if(!n.enable[i]||!n.status[i]||!n.temperature[i]||!n.setpoint[i])return false;
+ }
+ return true;
+}
+void heatingTelegram(const knxip::Telegram &t) {
+ if(!hc.enabled)return;
+ uint32_t now=millis();bool b;
+ if(t.operation!=knxip::Operation::Read){
+  for(unsigned i=0;i<9;++i)if(t.group==hc.feedback[i]&&t.asBool(b))heat.report(i,b,now);
+  for(unsigned i=0;i<roomCount;++i){
+   if(t.group==hc.enable[i]&&t.asBool(b)){if(t.operation==knxip::Operation::Write||zoneMode[i]==0)zoneEnabled[i]=b;if(t.operation==knxip::Operation::Write)zoneMode[i]=0;tunnel.writeBool(hc.status[i],zoneEnabled[i]);}
+   if(!t.compact&&t.size==2){
+    uint16_t raw=(uint16_t(t.data[0])<<8)|t.data[1];
+    int mantissa=raw&2047;if(raw&32768)mantissa-=2048;
+    float v=0.01f*mantissa*(1u<<((raw>>11)&15));
+    if(raw==0x7fff){if(t.group==hc.temperature[i])hz[i].valid=false;if(t.group==hc.setpoint[i])hz[i].setpointValid=false;continue;}
+    if(t.group==hc.temperature[i]){hz[i].temperature=v;hz[i].receivedAt=now;hz[i].valid=v>=-40&&v<=100;}
+    if(t.group==hc.setpoint[i]){hz[i].setpoint=v;hz[i].setpointValid=v>=5&&v<=35;}
+   }
+  }
+ }else for(unsigned i=0;i<roomCount;++i)if(t.group==hc.status[i]){uint8_t v=zoneEnabled[i];tunnel.respond(t.group,&v,1,true);}
+}
+void heatingLoop(uint32_t now) {
+ if(!hc.enabled)return;
+ bool link=tunnel.state()==knxip::State::Connected;
+ for(unsigned i=0;i<roomCount;++i){
+  hz[i].source=heating::TemperatureSource::Knx;hz[i].hysteresis=0.5f;hz[i].maxAgeMs=hc.maxAgeMs;
+  if(zoneMode[i]==2&&heating::age(now,zoneManualAt[i])>=1800000)zoneMode[i]=1;
+  zoneDemand[i]=heat.armed&&(zoneMode[i]==2||(zoneMode[i]==0&&zoneEnabled[i]&&hz[i].demand(now,zoneDemand[i])));
+ }
+ for(unsigned i=0;i<8;++i)heat.demand[i]=heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
+ heat.openMs=hc.openMs;heat.tick(now,link);
+ if(!link)return;
+ // Limit heating traffic and enqueue pump before valve commands.
+ if(heating::age(now,heatSend)>=200){
+  for(unsigned k=0;k<9;++k){unsigned i=(k+8)%9;auto&a=heat.output[i];
+   if(i!=8&&!heat.confirmed(8,false,now)&&!heat.output[8].command)continue;
+   if(!hc.command[i]||(i<8&&heatingLayout.zone[i]<0))continue;
+   if(!a.sent){if(tunnel.writeBool(hc.command[i],a.command,heatToken+1)==knxip::Result::Queued){heatPending[i]=++heatToken;a.sent=true;a.acknowledged=false;a.changed=now;heatSend=now;}break;}
+  }
+ }
+ if(heating::age(now,heatPoll)>=500){
+  unsigned i=heatPollIndex;uint16_t g=i<9?hc.feedback[i]:i<9+roomCount?hc.temperature[i-9]:i<9+2*roomCount?hc.setpoint[i-9-roomCount]:hc.enable[i-9-2*roomCount];
+  if(!g){heatPollIndex=(i+1)%(9+3*roomCount);heatPoll=now;}
+  else if(tunnel.read(g)==knxip::Result::Queued){heatPollIndex=(i+1)%(9+3*roomCount);heatPoll=now;}
+ }
+}
 void heatingJson(JsonDocument &d) {
-  d["outputsEnabled"] = false;
-  d["pumpState"] = "desconhecido";
+  d["outputsEnabled"] = hc.enabled;
+  d["armed"]=heat.armed;d["fault"]=heat.fault;
+  JsonObject control=d.createNestedObject("control");
+  control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;
+  JsonArray aa=control.createNestedArray("actuators");
+  for(unsigned i=0;i<9;++i){auto a=aa.createNestedObject();a["command"]=hc.command[i]?groupText(hc.command[i]):"";a["feedback"]=hc.feedback[i]?groupText(hc.feedback[i]):"";}
+  JsonArray rr=control.createNestedArray("rooms");
+  for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["valid"]=hz[i].fresh(millis());r["value"]=hz[i].temperature;r["target"]=hz[i].setpoint;r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
+  auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!a.known||heating::age(millis(),a.at)>=heat.freshnessMs)return "desconhecido";if(a.reported!=a.command)return "pendente";return a.reported?"ligado":"desligado";};
+  d["pumpState"] = state(8);
   JsonArray zones = d.createNestedArray("zones");
-  for (const auto &name : heatingZones) zones.add(name);
+  for (unsigned i=0;i<roomCount;++i) zones.add(heatingZones[i]);
   JsonArray circuits = d.createNestedArray("circuits");
-  for (unsigned i = 0; i < heating::Circuits; ++i) {
+  for (unsigned i = 0; i < 8; ++i) {
     JsonObject item = circuits.createNestedObject();
     item["position"] = int(heatingLayout.position[i]);
     item["zone"] = int(heatingLayout.zone[i]);
-    item["state"] = "desconhecido";
+    item["state"] = state(i);
   }
 }
-bool parseHeating(JsonDocument &d, heating::Layout &layout, String names[heating::Zones]) {
-  if (!d["zones"].is<JsonArray>() || d["zones"].size() != heating::Zones ||
-      !d["circuits"].is<JsonArray>() || d["circuits"].size() != heating::Circuits)
+bool parseHeating(JsonDocument &d, heating::RuntimeLayout &layout, String names[MaxRooms]) {
+  if (!d["zones"].is<JsonArray>() || d["zones"].size() > MaxRooms ||
+      !d["circuits"].is<JsonArray>() || (d["circuits"].size() != 8 && d["circuits"].size()!=7))
     return false;
-  for (unsigned i = 0; i < heating::Zones; ++i) {
+  for (unsigned i = 0; i < d["zones"].size(); ++i) {
     if (!d["zones"][i].is<const char *>()) return false;
     names[i] = d["zones"][i].as<String>();
     names[i].trim();
     if (names[i].length() < 1 || names[i].length() > 32) return false;
   }
-  for (unsigned i = 0; i < heating::Circuits; ++i) {
+  for (unsigned i = 0; i < d["circuits"].size(); ++i) {
     JsonObject item = d["circuits"][i];
     if (!item["position"].is<int>() || !item["zone"].is<int>()) return false;
     int position = item["position"], zone = item["zone"];
-    if (position < -1 || position >= 8 || zone < 0 || zone >= int(heating::Zones))
+    if (position < -1 || position >= 8 || zone < -1 || zone >= int(d["zones"].size()))
       return false;
     layout.position[i] = position;
     layout.zone[i] = zone;
   }
-  return layout.valid();
+  if(d["circuits"].size()==7)layout.position[7]=-1;
+  return layout.valid(d["zones"].size());
 }
 void loadHeating() {
   Preferences p;
@@ -542,13 +648,15 @@ void loadHeating() {
   String serialized = p.getString("layout", "");
   p.end();
   if (serialized.isEmpty()) return;
-  DynamicJsonDocument d(2048);
+  DynamicJsonDocument d(16384);
   if (deserializeJson(d, serialized)) return;
-  heating::Layout next;
-  String names[heating::Zones];
-  if (!parseHeating(d, next, names)) return;
+  heating::RuntimeLayout next;
+  String names[MaxRooms];
+  HeatConfig control;
+  if (!parseHeating(d, next, names)||!parseHeatConfig(d,control)) return;
+  hc=control;roomCount=d["zones"].size();
   heatingLayout = next;
-  for (unsigned i = 0; i < heating::Zones; ++i) heatingZones[i] = names[i];
+  for (unsigned i = 0; i < d["zones"].size(); ++i) heatingZones[i] = names[i];
 }
 void setupWeb() {
   const char *headers[] = {"X-CSRF-Token"};
@@ -561,7 +669,7 @@ void setupWeb() {
   });
   web.on("/api/heating/layout", HTTP_GET, [] {
     if (!auth()) return;
-    DynamicJsonDocument d(2048);
+    DynamicJsonDocument d(16384);
     heatingJson(d);
     sendJson(d);
   });
@@ -569,12 +677,14 @@ void setupWeb() {
     if (!mutation()) return;
     if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
     String body = web.arg("plain");
-    if (body.length() > 2048) { error(413, "Mapa demasiado grande"); return; }
-    DynamicJsonDocument d(2048);
+    if (body.length() > 16384) { error(413, "Mapa demasiado grande"); return; }
+    DynamicJsonDocument d(16384);
     if (deserializeJson(d, body)) { error(400, "JSON invalido"); return; }
-    heating::Layout next;
-    String names[heating::Zones];
-    if (!parseHeating(d, next, names)) {
+    heating::RuntimeLayout next;
+    String names[MaxRooms];
+    HeatConfig control;
+    if (!heatingSafe()) { error(409,"Para o aquecimento e aguarda feedback da bomba antes de configurar"); return; }
+    if (!parseHeating(d, next, names)||!parseHeatConfig(d,control)) {
       error(400, "Divisao, circuito ou posicao repetida/invalida"); return;
     }
     Preferences p;
@@ -582,11 +692,26 @@ void setupWeb() {
     bool saved = p.putString("layout", body) == body.length();
     p.end();
     if (!saved) { error(500, "Nao foi possivel guardar o mapa"); return; }
+    hc=control;roomCount=d["zones"].size();heat=heating::Runtime{};heatPollIndex=0;
+    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=1;}
     heatingLayout = next;
-    for (unsigned i = 0; i < heating::Zones; ++i) heatingZones[i] = names[i];
-    DynamicJsonDocument response(2048);
+    for (unsigned i = 0; i < roomCount; ++i) heatingZones[i] = names[i];
+    DynamicJsonDocument response(16384);
     heatingJson(response);
     sendJson(response);
+  });
+  web.on("/api/heating/control",HTTP_POST,[]{
+    if(!mutation())return;
+    if(!hc.enabled||updating||restarting){error(409,"Aquecimento indisponivel");return;}
+    StaticJsonDocument<256>d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
+    String action=d["action"]|"";
+    if(action=="stop")heat.stop(millis());
+    else if(action=="arm"){if(!heat.arm(millis())){error(409,"Aguarda ligacao KNX e feedback de bomba desligada");return;}for(unsigned i=0;i<roomCount;++i){zoneMode[i]=1;zoneEnabled[i]=false;}}
+    else if(action=="room"&&heat.armed&&d["index"].is<unsigned>()&&d["mode"].is<int>()){
+      unsigned i=d["index"];int mode=d["mode"];if(i>=roomCount||mode<0||mode>2){error(400,"Divisao/modo invalido");return;}zoneMode[i]=mode;zoneManualAt[i]=millis();zoneEnabled[i]=mode!=1;tunnel.writeBool(hc.status[i],zoneEnabled[i]);
+    }else{error(409,"Ativa primeiro o controlo");return;}
+    web.send(200,"application/json","{\"ok\":true}");
   });
   web.on("/api/config", HTTP_GET, [] {
     if (!auth()) return;
@@ -618,6 +743,16 @@ void setupWeb() {
     if (!parseConfig(d, config, next, why)) {
       error(400, why);
       return;
+    }
+    if (!heatingSafe()) { error(409,"Para o aquecimento antes de reiniciar"); return; }
+    if(hc.enabled){
+      uint16_t groups[82];unsigned n=0;
+      for(unsigned i=0;i<9;++i){groups[n++]=hc.command[i];groups[n++]=hc.feedback[i];}
+      for(unsigned i=0;i<roomCount;++i){groups[n++]=hc.enable[i];groups[n++]=hc.status[i];groups[n++]=hc.temperature[i];groups[n++]=hc.setpoint[i];}
+      for(unsigned i=0;i<n;++i){uint16_t g;
+        for(const auto&r:next.relay)if(r.enabled&&((sensor::parseGroup(r.commandGroup.c_str(),g)&&g==groups[i])||(sensor::parseGroup(r.feedbackGroup.c_str(),g)&&g==groups[i]))){error(400,"Grupo reservado pelo aquecimento");return;}
+        for(const auto&r:next.channel)if(r.enabled&&sensor::parseGroup(r.group.c_str(),g)&&g==groups[i]){error(400,"Grupo reservado pelo aquecimento");return;}
+      }
     }
     if (!saveConfig(next)) {
       error(500, "Nao foi possivel guardar");
@@ -709,7 +844,7 @@ void setupWeb() {
         if (u.status == UPLOAD_FILE_START) {
           uploadAllowed = false;
           updateOk = false;
-          if (!authenticated() || web.header("X-CSRF-Token") != csrf || restarting || updating)
+          if (!authenticated() || web.header("X-CSRF-Token") != csrf || restarting || updating || !heatingSafe())
             return;
           uploadAllowed = true;
           updating = true;
@@ -847,6 +982,7 @@ void loop() {
   serialCommands();
   if (!updating && !restarting) {
     sampleSensors(millis());
+    heatingLoop(millis());
     publishRelays(millis());
     publish(millis());
     display(millis());

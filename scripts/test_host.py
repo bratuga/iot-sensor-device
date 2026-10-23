@@ -9,7 +9,7 @@ if not compiler:
     raise SystemExit("Install a C++14 compiler (g++ or clang++)")
 build = root / "build"
 build.mkdir(exist_ok=True)
-for name in ("core", "heating"):
+for name in ("core", "heating", "heating_runtime"):
     exe = build / (name + "_tests" + (".exe" if sys.platform == "win32" else ""))
     subprocess.run([compiler, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(root / "include"), str(root / ("test/" + name + "_tests.cpp")), "-o", str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
