@@ -85,3 +85,40 @@ A verificação DOM da interface está em `scripts/test_web_ui.cjs` (Node e jsdo
 30.1.3). Usa `NODE_PATH` para indicar uma instalação externa de jsdom, sem adicionar
 dependências ao firmware. Verifica adicionar/remover divisões, associar os oito
 circuitos, preservar edições durante atualização de estados e cores dos mosaicos.
+
+## Valores recebidos e diagnóstico após reiniciar
+
+Os setpoints válidos e as últimas temperaturas recebidas são guardados em
+`heating/values`, associados aos grupos KNX (não à posição da divisão na lista).
+A configuração de grupos continua em `heating/layout`. Ao reiniciar, o setpoint
+é recuperado e a última temperatura aparece identificada como leitura guardada.
+Essa temperatura não é considerada atual para o termóstato: uma nova leitura KNX
+é necessária. Estados ON de bomba/válvulas e pedidos manuais não são restaurados.
+
+Alterações de setpoint e a primeira temperatura são gravadas no próximo ciclo;
+as alterações seguintes de temperatura são agrupadas em intervalos de até 60 s
+para reduzir escritas na flash. Reinício pelo firmware, guardar associações e OTA
+forçam a gravação pendente. Um corte abrupto de alimentação pode perder a última
+fração desse intervalo. Falhas de gravação são registadas na consola e expostas
+em `valuesSaved` na API. Valores não recebidos ainda por esta versão não podem ser
+recuperados retroativamente de reinícios anteriores.
+
+O feedback do atuador é aceite antes ou depois do ACK do túnel; a confirmação do
+estado requer ambos. O ACK não substitui o feedback. O painel mostra o grupo da
+bomba que aguarda OFF, apresenta temperatura e setpoint independentemente e permite
+«Reler valores KNX». A leitura da bomba é priorizada no arranque/reconexão.
+
+## Tráfego KNX por eventos
+
+Não existe varrimento contínuo dos grupos. Arranque, reconexão, guardar o mapa e
+«Reler valores KNX» iniciam uma única passagem limitada, espaçada em 500 ms;
+circuitos sem associação são ignorados. A passagem termina mesmo que um objeto
+não responda. Depois, os telegramas Write/Response recebidos atualizam a memória.
+Após um comando pode ser feita uma única leitura do feedback desse atuador se
+ainda não chegou o estado esperado. Não se repete a leitura de todos os valores.
+
+O estado elétrico confirmado é conservado durante a ligação, até novo feedback,
+novo comando ou perda de KNX. Não expira artificialmente para exigir polling.
+As temperaturas mantêm a validade configurada; o sensor de origem deve publicar
+as suas medições. Uma temperatura expirada cancela o pedido automático sem
+desencadear varrimentos do barramento.

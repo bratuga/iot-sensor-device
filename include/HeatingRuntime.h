@@ -35,7 +35,7 @@ struct Runtime {
   std::array<Actuator, 9> output{};
   std::array<bool, 8> demand{};
   bool armed = false, fault = false, connected = false;
-  uint32_t openMs = 120000, timeoutMs = 30000, freshnessMs = 60000;
+  uint32_t openMs = 120000, timeoutMs = 30000;
 
   void set(unsigned i, bool on, uint32_t now) {
     auto &a = output[i];
@@ -47,16 +47,23 @@ struct Runtime {
   }
   void report(unsigned i, bool on, uint32_t now) {
     auto &a = output[i];
-    if (a.sent && a.acknowledged) {
+    if (a.sent) {
       a.known = true;
       a.reported = on;
       a.at = now;
     }
   }
-  bool confirmed(unsigned i, bool on, uint32_t now) const {
+  // Feedback can precede the tunnel ACK. Keep it, but do not confirm the
+  // electrical state until both have arrived for the current command.
+  // Retain unchanged electrical states within a connection; changes and network
+  // loss invalidate them. This does not require periodic bus polling.
+  void acknowledge(unsigned i, bool ok) {
+    auto &a=output[i];a.acknowledged=ok;
+    if(!ok)a.known=false;
+  }
+  bool confirmed(unsigned i, bool on, uint32_t /*now*/) const {
     const auto &a = output[i];
-    return a.sent && a.acknowledged && a.known && a.reported == on &&
-           age(now, a.at) < freshnessMs;
+    return a.sent && a.acknowledged && a.known && a.reported == on;
   }
   void stop(uint32_t now) {
     armed = false;

@@ -15,3 +15,7 @@ w.eval('heatingPlan.armed=true;heatingPlan.control.rooms[0].mode=2;renderHeatSta
 w.eval('heatingPlan.control.rooms[0].mode=1;renderHeatStatus();');assert(!d.querySelector('#rooms .power-on'));console.log('PASS room power tile: red ON, grey OFF and accessible state');
 
 assert(!d.getElementById('rooms').textContent.includes('Circuito'));console.log('PASS room tiles omit circuit assignments');
+
+w.eval('heatingPlan.controlMessage="A aguardar feedback OFF da bomba em 3/5/10";Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,temperatureFresh:false,value:21.5,setpointKnown:true,target:23});renderHeatStatus();');
+assert(d.getElementById('rooms').textContent.includes('21.5 °C'));assert(d.getElementById('rooms').textContent.includes('última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('alvo 23.0 °C'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
+w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('alvo 23.0 °C'));console.log('PASS independent setpoint/temperature, stale cache label and actionable pump feedback diagnostic');
