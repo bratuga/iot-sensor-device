@@ -131,3 +131,67 @@ Cada divisão permite escolher termostato KNX externo (segue ON/OFF) ou automát
 A opção BME local é individual e desligada por defeito. Após 300 segundos desde o arranque, sem temperatura KNX válida dentro da validade configurada, usa uma amostra local válida. Um novo telegrama válido recupera prioridade imediatamente. O BME mede o ambiente junto ao ESP, não cada divisão. Sem sensor válido não há procura automática. Sem setpoint recebido durante 300 segundos usa 20 °C; a temperatura de recurso de 20 °C é apenas apresentada, não habilita aquecimento.
 
 No arranque envia OFF à bomba e, após confirmação, aos circuitos configurados (incluindo sem divisão). Só o atuador publica o próprio feedback. Ausência de confirmação é indicada após 30 segundos; não se fabrica um OFF confirmado. Ativar controlo preserva o pedido das divisões. Leituras gerais ocorrem apenas no arranque/reconexão ou botão Reler valores KNX.
+
+## 0.2.3 — apenas circuitos utilizados e diagnóstico de feedback
+
+Um circuito é utilizado quando está associado a uma divisão (`zone >= 0`). Um
+circuito sem divisão pode manter os endereços KNX gravados, mas não recebe
+comandos, não é lido e não participa na confirmação nem nos timeouts. A bomba
+participa sempre quando o controlo do aquecimento está habilitado. Esta regra
+substitui o comportamento de arranque descrito para 0.2.2.
+
+No arranque/reconexão, envia-se OFF à bomba; só após confirmação se envia OFF aos
+circuitos utilizados. O botão **Ativar controlo** fica disponível quando essas
+saídas confirmam OFF. Um comando só fica confirmado com ACK de transporte e
+feedback do atuador correspondente. O ACK sozinho não confirma a saída.
+
+Após pedido de calor, o tempo de abertura começa no primeiro feedback ON da
+válvula; telegramas ON repetidos não reiniciam esse tempo. A bomba liga após a
+confirmação e abertura dos circuitos pedidos. Na paragem ou mudança de divisão,
+espera-se o feedback OFF da bomba antes de fechar os circuitos. A bomba só volta
+a ligar quando todas as transições dos circuitos utilizados estão confirmadas. Perda de ligação
+exige nova confirmação e reativação manual. Um ON externo da bomba quando está
+pedido OFF provoca um comando OFF e uma falha explícita.
+
+As falhas identificam a saída e os grupos KNX (ou perda de ligação/caminho).
+O desenho da bomba mostra apenas o estado da bomba; a falha do controlo aparece
+no diagnóstico separado. Não há polling periódico: mantêm-se as leituras de
+arranque/reconexão/configuração, o botão **Reler valores KNX** e no máximo uma
+leitura de feedback por comando sem confirmação. Um setpoint válido guardado
+não é substituído por 20 °C após cinco minutos.
+
+### Validação reproduzível
+
+Executar `python scripts/test_host.py` e
+`NODE_PATH=<pasta com node_modules> node scripts/test_web_ui.cjs` (jsdom instalado).
+
+- Simulação com o mesmo `Runtime` e seletor de comandos usados no ESP: todas as
+  6.561 combinações de circuitos sem utilização, utilizados sem pedido e com pedido.
+- Arranque, ciclo de aquecimento, paragem e mudança de divisão; verificação de
+  que a bomba nunca liga sem caminho confirmado e tempo de abertura cumprido,
+  e de que não se fecham válvulas enquanto a bomba simulada continua ON.
+- 32 sequências determinísticas de mudanças rápidas de pedido e atrasos variáveis,
+  com ordem de telegramas preservada por saída do atuador.
+- ACK antes/depois do feedback, atrasos de 27 s, feedback repetido, ausente ou
+  contrário, ACK ausente, falha de transporte, fila cheia, reconexão e ON externo.
+- Temperaturas/setpoints, histerese, validade, alternativa BME, modo externo,
+  modo manual de 30 minutos, restauro do setpoint e overflow de `millis()`.
+- Regressões KNX (50.000 datagramas), leituras finitas e painel DOM, incluindo
+  diagnóstico separado da bomba e posições sem utilização.
+
+`test/fixtures/knx_v4_feedback.txt` contém os feedbacks do atuador 1.1.20 do
+último arranque no registo telegramas_v4.xml, de 18:54:22.551536 UTC até antes do
+OFF indevido de 18:54:52.763334 UTC. Colunas: milissegundos desde o primeiro
+comando OFF à bomba, índice da saída (0–7 circuitos, 8 bomba), valor booleano.
+A simulação reproduz esse prefixo, ativa o controlo aos 22 s e pede WC/C4 aos
+28,04 s; depois prolonga o ciclo com um atuador simulado. Não reproduz os
+feedbacks OFF causados pelo erro antigo como se fossem eventos independentes.
+
+Isto é validação de software com dados capturados e atuadores simulados; não é
+um ensaio físico do ESP, da bomba, do caudal ou dos tempos reais das cabeças.
+
+Validação desta revisão: suites nativas com UndefinedBehaviorSanitizer e avisos
+como erros, simulação, regressões KNX e DOM passaram. A compilação
+`python -m platformio run -e esp32` passou com as dependências fixadas no projeto:
+52.444 bytes RAM (16,0%) e 976.821 bytes flash (49,7%). A biblioteca OneWire
+2.3.8 emite dois avisos de pré-processamento; não houve erros de compilação.

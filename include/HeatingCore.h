@@ -243,4 +243,15 @@ inline ZoneInput selectTemperature(ZoneInput knx, bool fallback, float local,
   }
   return knx;
 }
+inline bool roomDemand(bool armed, unsigned mode, bool enabled, bool external,
+                       const ZoneInput &input, uint32_t now, bool previous) {
+  return armed && (mode==2 || (mode==0 && enabled && (external || input.demand(now,previous))));
+}
+inline bool manualExpired(unsigned mode, uint32_t now, uint32_t since) {
+  return mode==2 && age(now,since)>=1800000;
+}
+inline void defaultSetpoint(ZoneInput &input, bool received, uint32_t now, uint32_t boot) {
+  // Keep a restored setpoint. An explicit invalid telegram must not become 20 C.
+  if(!received && !input.setpointValid && age(now,boot)>=300000){input.setpoint=20;input.setpointValid=true;}
+}
 } // namespace heating

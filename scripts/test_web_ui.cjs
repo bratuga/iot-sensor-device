@@ -21,3 +21,13 @@ assert(d.getElementById('rooms').textContent.includes('21.5 °C'));assert(d.getE
 w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('alvo 23.0 °C'));console.log('PASS independent setpoint/temperature, stale cache label and actionable pump feedback diagnostic');
 
 d.getElementById('hz0external').checked=true;d.getElementById('hz0bmeFallback').checked=true;d.getElementById('hz0margin').value='0.4';w.eval('captureHeating();renderHeating(false)');assert(d.getElementById('hz0external').checked);assert(d.getElementById('hz0bmeFallback').checked);assert.equal(d.getElementById('hz0margin').value,'0.4');console.log('PASS room control and BME fallback survive redraw');
+
+w.eval('heatingPlan.outputsEnabled=true;heatingPlan.armed=false;heatingPlan.canArm=false;heatingPlan.fault=true;heatingPlan.faultOutput=3;heatingPlan.pumpState="desligado";heatingPlan.controlMessage="Falha: Circuito 4 (feedback 3/5/14)";renderHeatStatus();');
+assert(d.getElementById('armHeat').disabled);
+assert(d.getElementById('heatMessage').textContent.includes('Circuito 4'));
+assert(!d.getElementById('pumpState').textContent.includes('Falha'));
+assert(d.getElementById('pumpState').textContent.includes('desligado'));
+w.eval('heatingPlan.canArm=true;renderHeatStatus();');assert(!d.getElementById('armHeat').disabled);
+w.eval('heatingPlan.circuits[0].zone=-1;heatingPlan.circuits[0].state="nao utilizado";renderHeatStatus();');
+assert(d.querySelector('#branches .branch.unused').textContent.includes('Sem circuito'));
+console.log('PASS unused circuit, specific fault separate from pump, arm only after used outputs confirmed OFF');

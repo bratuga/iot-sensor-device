@@ -9,8 +9,8 @@ if not compiler:
     raise SystemExit("Install a C++14 compiler (g++ or clang++)")
 build = root / "build"
 build.mkdir(exist_ok=True)
-for name in ("core", "heating", "heating_runtime"):
+for name in ("core", "heating", "heating_runtime", "heating_simulation"):
     exe = build / (name + "_tests" + (".exe" if sys.platform == "win32" else ""))
     subprocess.run([compiler, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(root / "include"), str(root / ("test/" + name + "_tests.cpp")), "-o", str(exe)], check=True)
-    subprocess.run([str(exe)], check=True)
+    subprocess.run([str(exe)] + ([str(root / "test/fixtures/knx_v4_feedback.txt")] if name == "heating_simulation" else []), check=True)
 subprocess.run([sys.executable, str(root / "lib/knx-tunneling/scripts/run_tests.py"), "--compiler", compiler, "--sanitize"], check=True)
