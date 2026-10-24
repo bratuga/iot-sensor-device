@@ -906,7 +906,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.2.3-feedback-control";
+    d["firmware"] = "0.2.4-room-ui";
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     d["rssi"] = WiFi.RSSI();
@@ -1095,7 +1095,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.3-feedback-control. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.4-room-ui. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

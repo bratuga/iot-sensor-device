@@ -17,8 +17,8 @@ w.eval('heatingPlan.control.rooms[0].mode=1;renderHeatStatus();');assert(!d.quer
 assert(!d.getElementById('rooms').textContent.includes('Circuito'));console.log('PASS room tiles omit circuit assignments');
 
 w.eval('heatingPlan.controlMessage="A aguardar feedback OFF da bomba em 3/5/10";Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,temperatureFresh:false,value:21.5,setpointKnown:true,target:23});renderHeatStatus();');
-assert(d.getElementById('rooms').textContent.includes('21.5 °C'));assert(d.getElementById('rooms').textContent.includes('última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('alvo 23.0 °C'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
-w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('alvo 23.0 °C'));console.log('PASS independent setpoint/temperature, stale cache label and actionable pump feedback diagnostic');
+assert(d.getElementById('rooms').textContent.includes('21,5º'));assert(d.querySelector('.room-temperature').title.includes('Última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('Setpoint: 23º'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
+w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('Setpoint: 23º'));console.log('PASS independent setpoint/temperature, stale cache tooltip and actionable pump feedback diagnostic');
 
 d.getElementById('hz0external').checked=true;d.getElementById('hz0bmeFallback').checked=true;d.getElementById('hz0margin').value='0.4';w.eval('captureHeating();renderHeating(false)');assert(d.getElementById('hz0external').checked);assert(d.getElementById('hz0bmeFallback').checked);assert.equal(d.getElementById('hz0margin').value,'0.4');console.log('PASS room control and BME fallback survive redraw');
 
@@ -31,3 +31,17 @@ w.eval('heatingPlan.canArm=true;renderHeatStatus();');assert(!d.getElementById('
 w.eval('heatingPlan.circuits[0].zone=-1;heatingPlan.circuits[0].state="nao utilizado";renderHeatStatus();');
 assert(d.querySelector('#branches .branch.unused').textContent.includes('Sem circuito'));
 console.log('PASS unused circuit, specific fault separate from pump, arm only after used outputs confirmed OFF');
+
+// The same state still drives the commands; visible text stays compact.
+w.eval('heatingPlan.armed=true;Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,value:20,setpointKnown:true,target:25,demand:true,mode:2});renderHeatStatus();');
+assert.equal(d.querySelector('.room-temperature').textContent,'20º');
+assert.equal(d.querySelectorAll('.room-detail')[0].textContent,'Setpoint: 25º');
+assert.equal(d.querySelectorAll('.room-detail')[1].textContent,'Pedido: ligado');
+assert.equal(d.querySelector('.power-toggle').textContent,'');
+assert(d.querySelector('.power-toggle').getAttribute('aria-label').startsWith('Desligar '));
+assert.equal(w.getComputedStyle(d.querySelector('.power-toggle')).width,'64px');
+assert.equal(w.getComputedStyle(d.querySelector('.room-temperature')).fontSize,'34px');
+w.eval('var lastRoomAction;heatAction=(...args)=>{lastRoomAction=args;};');
+d.querySelector('.room-auto').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,0]));
+d.querySelector('.power-toggle').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,1]));
+console.log('PASS compact room tile, icon-only accessible power button, temperature/setpoint/request, unchanged mode actions');
