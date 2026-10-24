@@ -122,3 +122,12 @@ novo comando ou perda de KNX. Não expira artificialmente para exigir polling.
 As temperaturas mantêm a validade configurada; o sensor de origem deve publicar
 as suas medições. Uma temperatura expirada cancela o pedido automático sem
 desencadear varrimentos do barramento.
+
+
+## 0.2.2 — controlo por divisão e alternativa BME
+
+Cada divisão permite escolher termostato KNX externo (segue ON/OFF) ou automático ESP (temperatura/setpoint com margem ± configurável, padrão 0,3 °C). O ON/OFF habilita a divisão no automático. O comando e o feedback da divisão respondem a GroupValueRead; mudanças pelo KNX ou painel publicam o feedback. O último pedido é guardado, mas as saídas arrancam desarmadas.
+
+A opção BME local é individual e desligada por defeito. Após 300 segundos desde o arranque, sem temperatura KNX válida dentro da validade configurada, usa uma amostra local válida. Um novo telegrama válido recupera prioridade imediatamente. O BME mede o ambiente junto ao ESP, não cada divisão. Sem sensor válido não há procura automática. Sem setpoint recebido durante 300 segundos usa 20 °C; a temperatura de recurso de 20 °C é apenas apresentada, não habilita aquecimento.
+
+No arranque envia OFF à bomba e, após confirmação, aos circuitos configurados (incluindo sem divisão). Só o atuador publica o próprio feedback. Ausência de confirmação é indicada após 30 segundos; não se fabrica um OFF confirmado. Ativar controlo preserva o pedido das divisões. Leituras gerais ocorrem apenas no arranque/reconexão ou botão Reler valores KNX.

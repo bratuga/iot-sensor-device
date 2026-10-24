@@ -59,9 +59,14 @@ heating::Runtime heat;
 struct HeatConfig {
  bool enabled=false;
  uint16_t command[9]={}, feedback[9]={}, enable[MaxRooms]={}, status[MaxRooms]={}, temperature[MaxRooms]={}, setpoint[MaxRooms]={};
+ bool external[MaxRooms]={}, bmeFallback[MaxRooms]={};
+ float margin[MaxRooms]={};
  uint32_t openMs=120000, maxAgeMs=300000;
 } hc;
 heating::ZoneInput hz[MaxRooms];
+heating::ZoneInput effective[MaxRooms];
+bool roomStatusDirty[MaxRooms]={}, roomReadCommand[MaxRooms]={}, roomReadStatus[MaxRooms]={};
+bool setpointReceived[MaxRooms]={};
 heating::Snapshot heatCache[MaxRooms];
 bool heatCacheDirty=false, heatCacheUrgent=false, heatCacheSaveOk=true;
 uint32_t heatCacheSavedAt=0;
@@ -559,6 +564,13 @@ bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
  };
  for(unsigned i=0;i<9;++i)if(!group(c["actuators"][i]["command"],n.command[i])||!group(c["actuators"][i]["feedback"],n.feedback[i]))return false;
  for(unsigned i=0;i<d["zones"].size();++i)if(!group(c["rooms"][i]["enable"],n.enable[i])||!group(c["rooms"][i]["status"],n.status[i])||!group(c["rooms"][i]["temperature"],n.temperature[i])||!group(c["rooms"][i]["setpoint"],n.setpoint[i]))return false;
+ for(unsigned i=0;i<d["zones"].size();++i){
+   JsonObject r=c["rooms"][i];
+   if((r.containsKey("external")&&!r["external"].is<bool>())||(r.containsKey("bmeFallback")&&!r["bmeFallback"].is<bool>()))return false;
+   n.external[i]=r["external"]|false;n.bmeFallback[i]=r["bmeFallback"]|false;
+   n.margin[i]=r["margin"]|0.3f;
+   if(!std::isfinite(n.margin[i])||n.margin[i]<0.1f||n.margin[i]>5)return false;
+ }
  for(unsigned i=0;i<9;++i)if(bool(n.command[i])!=bool(n.feedback[i]))return false;
  if(n.enabled){
    if(!n.command[8]||!n.feedback[8])return false;
@@ -578,6 +590,7 @@ void loadHeatingValues() {
   for(unsigned i=0;i<roomCount;++i){
     auto &c=heatCache[i];c.temperatureGroup=hc.temperature[i];c.setpointGroup=hc.setpoint[i];
     for(JsonObject r:d["rooms"].as<JsonArray>()){
+      if(hc.enable[i]&&r["enableGroup"]==hc.enable[i]&&r["enabled"].is<bool>())zoneEnabled[i]=r["enabled"];
       if(c.temperatureGroup&&r["temperatureGroup"]==c.temperatureGroup&&r["temperature"].is<float>()){
         float v=r["temperature"];if(std::isfinite(v)&&v>=-40&&v<=100){c.temperature=v;c.hasTemperature=true;}
       }
@@ -598,7 +611,7 @@ void saveHeatingValues(bool force) {
   JsonArray rooms=d.createNestedArray("rooms");
   for(unsigned i=0;i<roomCount;++i){
     auto r=rooms.createNestedObject();const auto &c=heatCache[i];
-    r["temperatureGroup"]=hc.temperature[i];r["setpointGroup"]=hc.setpoint[i];
+    r["temperatureGroup"]=hc.temperature[i];r["setpointGroup"]=hc.setpoint[i];r["enableGroup"]=hc.enable[i];r["enabled"]=zoneEnabled[i];
     if(c.hasTemperature)r["temperature"]=c.temperature;
     if(c.hasSetpoint)r["setpoint"]=c.setpoint;
   }
@@ -624,7 +637,7 @@ void heatingTelegram(const knxip::Telegram &t) {
  if(t.operation!=knxip::Operation::Read){
   for(unsigned i=0;i<9;++i)if(t.group==hc.feedback[i]&&t.asBool(b))heat.report(i,b,now);
   for(unsigned i=0;i<roomCount;++i){
-   if(t.group==hc.enable[i]&&t.asBool(b)){if(t.operation==knxip::Operation::Write||zoneMode[i]==0)zoneEnabled[i]=b;if(t.operation==knxip::Operation::Write)zoneMode[i]=0;tunnel.writeBool(hc.status[i],zoneEnabled[i]);}
+   if(t.group==hc.enable[i]&&t.asBool(b)){zoneEnabled[i]=b;zoneMode[i]=0;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;}
    if(!t.compact&&t.size==2){
     uint16_t raw=(uint16_t(t.data[0])<<8)|t.data[1];
     int mantissa=raw&2047;if(raw&32768)mantissa-=2048;
@@ -633,30 +646,39 @@ void heatingTelegram(const knxip::Telegram &t) {
     if(t.group==hc.temperature[i]){hz[i].temperature=v;hz[i].receivedAt=now;hz[i].valid=v>=-40&&v<=100;
       if(hz[i].valid){auto &c=heatCache[i];if(!c.hasTemperature||c.temperature!=v){heatCacheUrgent|=!c.hasTemperature;heatCacheDirty=true;c.temperature=v;c.hasTemperature=true;}}
     }
-    if(t.group==hc.setpoint[i]){hz[i].setpoint=v;hz[i].setpointValid=v>=5&&v<=35;
+    if(t.group==hc.setpoint[i]){setpointReceived[i]=true;hz[i].setpoint=v;hz[i].setpointValid=v>=5&&v<=35;
       auto &c=heatCache[i];if(c.hasSetpoint!=hz[i].setpointValid||(hz[i].setpointValid&&c.setpoint!=v)){c.hasSetpoint=hz[i].setpointValid;c.setpoint=v;heatCacheDirty=heatCacheUrgent=true;}
     }
    }
   }
- }else for(unsigned i=0;i<roomCount;++i)if(t.group==hc.status[i]){uint8_t v=zoneEnabled[i];tunnel.respond(t.group,&v,1,true);}
+ }else for(unsigned i=0;i<roomCount;++i){if(t.group==hc.status[i])roomReadStatus[i]=true;if(t.group==hc.enable[i])roomReadCommand[i]=true;}
 }
 void heatingLoop(uint32_t now) {
  saveHeatingValues();
  if(!hc.enabled)return;
  bool link=tunnel.state()==knxip::State::Connected;
  for(unsigned i=0;i<roomCount;++i){
-  hz[i].source=heating::TemperatureSource::Knx;hz[i].hysteresis=0.5f;hz[i].maxAgeMs=hc.maxAgeMs;
-  if(zoneMode[i]==2&&heating::age(now,zoneManualAt[i])>=1800000)zoneMode[i]=1;
-  zoneDemand[i]=heat.armed&&(zoneMode[i]==2||(zoneMode[i]==0&&zoneEnabled[i]&&hz[i].demand(now,zoneDemand[i])));
+  hz[i].source=heating::TemperatureSource::Knx;hz[i].hysteresis=2*hc.margin[i];hz[i].maxAgeMs=hc.maxAgeMs;
+  if(!setpointReceived[i]&&heating::age(now,bootAt)>=300000){hz[i].setpoint=20;hz[i].setpointValid=true;}
+  effective[i]=heating::selectTemperature(hz[i],hc.bmeFallback[i],readings[0].value,
+    config.bmeEnabled&&fresh(0,now),readings[0].at,now,bootAt);
+  if(zoneMode[i]==2&&heating::age(now,zoneManualAt[i])>=1800000){zoneMode[i]=1;zoneEnabled[i]=false;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;}
+  zoneDemand[i]=heat.armed&&(zoneMode[i]==2||(zoneMode[i]==0&&zoneEnabled[i]&&(hc.external[i]||effective[i].demand(now,zoneDemand[i]))));
  }
  for(unsigned i=0;i<8;++i)heat.demand[i]=heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
  heat.openMs=hc.openMs;heat.tick(now,link);
  if(!link)return;
+ for(unsigned i=0;i<roomCount;++i){
+   uint8_t value=zoneEnabled[i];
+   if(roomReadCommand[i]&&hc.enable[i]&&tunnel.respond(hc.enable[i],&value,1,true)==knxip::Result::Queued)roomReadCommand[i]=false;
+   if(roomReadStatus[i]&&hc.status[i]&&tunnel.respond(hc.status[i],&value,1,true)==knxip::Result::Queued)roomReadStatus[i]=false;
+   if(roomStatusDirty[i]&&hc.status[i]&&tunnel.writeBool(hc.status[i],value)==knxip::Result::Queued)roomStatusDirty[i]=false;
+ }
  // Limit heating traffic and enqueue pump before valve commands.
  if(heating::age(now,heatSend)>=200){
   for(unsigned k=0;k<9;++k){unsigned i=(k+8)%9;auto&a=heat.output[i];
    if(i!=8&&!heat.confirmed(8,false,now)&&!heat.output[8].command)continue;
-   if(!hc.command[i]||(i<8&&heatingLayout.zone[i]<0))continue;
+   if(!hc.command[i])continue;
    if(!a.sent){if(tunnel.writeBool(hc.command[i],a.command,heatToken+1)==knxip::Result::Queued){heatPending[i]=++heatToken;a.sent=true;a.acknowledged=false;a.changed=now;heatSend=now;}break;}
   }
  }
@@ -685,8 +707,8 @@ void heatingJson(JsonDocument &d) {
   JsonArray aa=control.createNestedArray("actuators");
   for(unsigned i=0;i<9;++i){auto a=aa.createNestedObject();a["command"]=hc.command[i]?groupText(hc.command[i]):"";a["feedback"]=hc.feedback[i]?groupText(hc.feedback[i]):"";}
   JsonArray rr=control.createNestedArray("rooms");
-  for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["valid"]=hz[i].fresh(millis());r["value"]=heatCache[i].hasTemperature?heatCache[i].temperature:hz[i].temperature;r["temperatureKnown"]=heatCache[i].hasTemperature;r["temperatureFresh"]=hz[i].valid&&heating::age(millis(),hz[i].receivedAt)<hc.maxAgeMs;r["setpointKnown"]=hz[i].setpointValid;r["target"]=hz[i].setpoint;r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
-  auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!a.known)return "desconhecido";if(a.reported!=a.command)return "pendente";return a.reported?"ligado":"desligado";};
+  for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["external"]=hc.external[i];r["bmeFallback"]=hc.bmeFallback[i];r["margin"]=hc.margin[i];r["source"]=effective[i].valid?(effective[i].source==heating::TemperatureSource::Bme280?"BME local":"KNX"):"recurso / aguarda leitura";r["valid"]=effective[i].fresh(millis());r["value"]=effective[i].valid?effective[i].temperature:20;r["temperatureKnown"]=true;r["temperatureFresh"]=effective[i].valid;r["defaultTemperature"]=!effective[i].valid;r["setpointKnown"]=hz[i].setpointValid;r["target"]=hz[i].setpoint;r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
+  auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(a.sent&&!heat.confirmed(i,a.command,millis()))return heating::age(millis(),a.changed)>=heat.timeoutMs?"sem confirmação":"pendente";if(!a.known)return "desconhecido";if(a.reported!=a.command)return "pendente";return a.reported?"ligado":"desligado";};
   d["pumpState"] = state(8);
   JsonArray zones = d.createNestedArray("zones");
   for (unsigned i=0;i<roomCount;++i) zones.add(heatingZones[i]);
@@ -773,7 +795,7 @@ void setupWeb() {
     saveHeatingValues(true);
     hc=control;roomCount=d["zones"].size();heat=heating::Runtime{};heatReadSweep.start(roomCount);
     for(auto &pending:heatFeedbackRead)pending=false;
-    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=1;}
+    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=0;setpointReceived[i]=false;effective[i]={};roomStatusDirty[i]=true;roomReadCommand[i]=roomReadStatus[i]=false;}
     heatingLayout = next;
     for (unsigned i = 0; i < roomCount; ++i) heatingZones[i] = names[i];
     loadHeatingValues();
@@ -789,9 +811,9 @@ void setupWeb() {
     String action=d["action"]|"";
     if(action=="refresh"){heatReadSweep.start(roomCount);heatPoll=millis()-500;}
     else if(action=="stop")heat.stop(millis());
-    else if(action=="arm"){if(!heat.arm(millis())){error(409,heatingBlockReason());return;}for(unsigned i=0;i<roomCount;++i){zoneMode[i]=1;zoneEnabled[i]=false;}}
+    else if(action=="arm"){if(!heat.arm(millis())){error(409,heatingBlockReason());return;}for(unsigned i=0;i<roomCount;++i){roomStatusDirty[i]=true;}}
     else if(action=="room"&&heat.armed&&d["index"].is<unsigned>()&&d["mode"].is<int>()){
-      unsigned i=d["index"];int mode=d["mode"];if(i>=roomCount||mode<0||mode>2){error(400,"Divisao/modo invalido");return;}zoneMode[i]=mode;zoneManualAt[i]=millis();zoneEnabled[i]=mode!=1;tunnel.writeBool(hc.status[i],zoneEnabled[i]);
+      unsigned i=d["index"];int mode=d["mode"];if(i>=roomCount||mode<0||mode>2){error(400,"Divisao/modo invalido");return;}zoneMode[i]=mode;zoneManualAt[i]=millis();zoneEnabled[i]=mode!=1;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;
     }else{error(409,"Ativa primeiro o controlo");return;}
     web.send(200,"application/json","{\"ok\":true}");
   });
@@ -860,9 +882,8 @@ void setupWeb() {
     if (!auth()) return;
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
-    d["firmware"] = "0.2.0";
     d["name"] = config.name;
-    d["firmware"] = "0.2.1-knx-cache";
+    d["firmware"] = "0.2.2-room-control";
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     d["rssi"] = WiFi.RSSI();
@@ -1051,7 +1072,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.1-knx-cache. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.2-room-control. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

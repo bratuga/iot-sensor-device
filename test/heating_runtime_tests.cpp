@@ -7,6 +7,17 @@ using namespace heating;
 static void sent(Runtime&r,unsigned i,uint32_t now){auto&a=r.output[i];a.sent=true;a.acknowledged=true;a.changed=now;r.report(i,a.command,now);}
 static void boot(Runtime&r,uint32_t now=0){r.openMs=100;r.timeoutMs=50;r.tick(now,true);sent(r,8,now);r.tick(now,true);for(unsigned i=0;i<8;++i)sent(r,i,now);assert(r.arm(now));}
 int main(){
+ {ZoneInput z;z.source=TemperatureSource::Knx;z.maxAgeMs=300000;z.setpoint=20;z.setpointValid=true;z.hysteresis=0.6;
+  assert(!selectTemperature(z,true,18,true,299999,299999,0).valid);
+  auto f=selectTemperature(z,true,18,true,300000,300000,0);assert(f.source==TemperatureSource::Bme280&&f.demand(300000,false));assert(!z.valid);
+  assert(!selectTemperature(z,false,18,true,300000,300000,0).valid);
+  assert(!selectTemperature(z,true,18,false,300000,300000,0).valid);
+  z.valid=true;z.receivedAt=300001;z.temperature=21;
+  f=selectTemperature(z,true,18,true,300001,300001,0);assert(f.source==TemperatureSource::Knx&&!f.demand(300001,true));
+  f=selectTemperature(z,true,18,true,600001,600001,0);assert(f.source==TemperatureSource::Bme280);
+  z.valid=false;assert(selectTemperature(z,true,18,true,0x493d0,0x493d0,0xfffffff0).valid);
+ }
+
  {RuntimeLayout l;assert(l.valid(0));l.zone[0]=0;assert(!l.valid(0));assert(l.valid(1));l.zone[7]=0;assert(l.valid(1));l.position[0]=0;l.position[7]=0;assert(!l.valid(1));l.position[7]=7;assert(l.valid(1));l.zone[7]=-1;assert(l.valid(1));}
 
  for(unsigned mask=1;mask<256;++mask){Runtime r;boot(r);for(unsigned i=0;i<8;++i)r.demand[i]=(mask>>i)&1;r.tick(1,true);for(unsigned i=0;i<8;++i)sent(r,i,1);r.tick(100,true);assert(!r.output[8].command);r.tick(101,true);assert(r.output[8].command);sent(r,8,101);r.stop(102);r.tick(102,true);for(unsigned i=0;i<8;++i)assert(r.output[i].command==bool((mask>>i)&1));sent(r,8,103);r.tick(103,true);for(unsigned i=0;i<8;++i)assert(!r.output[i].command);}

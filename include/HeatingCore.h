@@ -231,4 +231,16 @@ struct ZoneInput {
                     : temperature <= setpoint - hysteresis / 2;
   }
 };
+// Never overwrite KNX evidence with the local fallback. New KNX samples win immediately.
+inline ZoneInput selectTemperature(ZoneInput knx, bool fallback, float local,
+                                  bool localValid, uint32_t localAt,
+                                  uint32_t now, uint32_t boot) {
+  if(knx.valid && age(now,knx.receivedAt)<knx.maxAgeMs) return knx;
+  knx.valid=false;
+  if(fallback && age(now,boot)>=300000 && localValid && std::isfinite(local)) {
+    knx.source=TemperatureSource::Bme280;knx.temperature=local;
+    knx.receivedAt=localAt;knx.valid=true;
+  }
+  return knx;
+}
 } // namespace heating
