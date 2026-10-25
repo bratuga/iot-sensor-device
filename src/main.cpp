@@ -26,6 +26,8 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <WiFiUdp.h>
 #include <Wire.h>
 #include <knx/TunnelClient.h>
+#include <cmath>
+#include <cstring>
 #include <memory>
 
 namespace {
@@ -50,6 +52,9 @@ bool restarting = false, firstSample = true;
 IPAddress boundIp;
 bool serialOverflow = false;
 String csrf, lastEvent = "Arranque", apName, serialLine;
+String adminSession;
+uint32_t adminLastAt=0, adminBlockedUntil=0;
+unsigned adminFailures=0;
 String detectedRom[8];
 heating::RuntimeLayout heatingLayout;
 constexpr unsigned MaxRooms=16;
@@ -67,6 +72,8 @@ heating::ZoneInput hz[MaxRooms];
 heating::ZoneInput effective[MaxRooms];
 bool roomStatusDirty[MaxRooms]={}, roomReadCommand[MaxRooms]={}, roomReadStatus[MaxRooms]={};
 bool setpointReceived[MaxRooms]={};
+uint32_t setpointSerial=0, setpointPending[MaxRooms]={};
+bool setpointFailed[MaxRooms]={};
 heating::Snapshot heatCache[MaxRooms];
 bool heatCacheDirty=false, heatCacheUrgent=false, heatCacheSaveOk=true;
 uint32_t heatCacheSavedAt=0;
@@ -130,6 +137,9 @@ class Events : public knxip::Listener {
   void onTelegram(const knxip::Telegram &) override;
   void onEvent(knxip::Event e, uint16_t detail) override;
   void onSent(uint32_t token, bool ok) override {
+    for(unsigned i=0;i<roomCount;++i)if(token&&token==setpointPending[i]){
+      setpointPending[i]=0;setpointFailed[i]=!ok;
+    }
     for(unsigned i=0;i<9;++i)if(token&&token==heatPending[i]){if(!heat.active(i)||!heat.output[i].sent)continue;heat.acknowledge(i,ok);heatFeedbackRead[i]=ok&&!heat.confirmed(i,heat.output[i].command,millis());if(!ok){heat.output[i].sent=false;heat.trip(millis(),heating::Runtime::Failure::Transport,int(i));}}
     if (token >= 1 && token <= 5)
       readings[token - 1].publication.complete(ok, millis());
@@ -519,26 +529,27 @@ void error(int code, const String &msg) {
   d["error"] = msg;
   sendJson(d, code);
 }
-// Temporary local test mode. Set true when Web access protection is restored.
-constexpr bool RequireWebAuthentication = false;
 bool authenticated() {
-  return !RequireWebAuthentication || web.authenticate("admin", apPassword());
+  if(adminSession.isEmpty() || web.header("X-Admin-Session")!=adminSession)return false;
+  uint32_t now=millis();
+  if(uint32_t(now-adminLastAt)>1800000u){adminSession="";return false;}
+  adminLastAt=now;
+  return true;
 }
 bool auth() {
   if (authenticated())
     return true;
-  web.requestAuthentication(DIGEST_AUTH, "Sensor KNX");
+  error(401,"Inicia sessao nas Configuracoes");
   return false;
 }
-bool mutation() {
-  if (!auth())
-    return false;
+bool publicMutation() {
   if (web.header("X-CSRF-Token") != csrf) {
     error(403, "Sessao invalida; recarrega a pagina");
     return false;
   }
   return true;
 }
+bool mutation(){return auth()&&publicMutation();}
 bool heatingSafe() {
  if (!hc.enabled) return true;
  if (heat.armed || !heat.confirmed(8,false,millis())) return false;
@@ -719,16 +730,16 @@ void heatingLoop(uint32_t now) {
  }
 
 }
-void heatingJson(JsonDocument &d) {
+void heatingJson(JsonDocument &d, bool includeConfig=true) {
   d["outputsEnabled"] = hc.enabled;
   d["canArm"]=hc.enabled&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
   d["armed"]=heat.armed;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
-  JsonObject control=d.createNestedObject("control");
-  control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;
-  JsonArray aa=control.createNestedArray("actuators");
-  for(unsigned i=0;i<9;++i){auto a=aa.createNestedObject();a["command"]=hc.command[i]?groupText(hc.command[i]):"";a["feedback"]=hc.feedback[i]?groupText(hc.feedback[i]):"";}
-  JsonArray rr=control.createNestedArray("rooms");
-  for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["external"]=hc.external[i];r["bmeFallback"]=hc.bmeFallback[i];r["margin"]=hc.margin[i];r["source"]=effective[i].valid?(effective[i].source==heating::TemperatureSource::Bme280?"BME local":"KNX"):"recurso / aguarda leitura";r["valid"]=effective[i].fresh(millis());r["value"]=effective[i].valid?effective[i].temperature:20;r["temperatureKnown"]=true;r["temperatureFresh"]=effective[i].valid;r["defaultTemperature"]=!effective[i].valid;r["setpointKnown"]=hz[i].setpointValid;r["target"]=hz[i].setpoint;r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
+  JsonObject control;
+  if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;
+    JsonArray aa=control.createNestedArray("actuators");
+    for(unsigned i=0;i<9;++i){auto a=aa.createNestedObject();a["command"]=hc.command[i]?groupText(hc.command[i]):"";a["feedback"]=hc.feedback[i]?groupText(hc.feedback[i]):"";}}
+  JsonArray rr=includeConfig?control.createNestedArray("rooms"):d.createNestedArray("rooms");
+  for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();if(includeConfig){r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["external"]=hc.external[i];r["bmeFallback"]=hc.bmeFallback[i];r["margin"]=hc.margin[i];}r["hasSetpoint"]=hc.setpoint[i]!=0;r["source"]=effective[i].valid?(effective[i].source==heating::TemperatureSource::Bme280?"BME local":"KNX"):"recurso / aguarda leitura";r["valid"]=effective[i].fresh(millis());r["value"]=effective[i].valid?effective[i].temperature:20;r["temperatureKnown"]=true;r["temperatureFresh"]=effective[i].valid;r["defaultTemperature"]=!effective[i].valid;r["setpointKnown"]=hz[i].setpointValid;r["target"]=hz[i].setpoint;r["setpointPending"]=setpointPending[i]!=0;r["setpointFailed"]=setpointFailed[i];r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
   auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!heat.active(i))return "nao utilizado";if(a.sent&&!heat.confirmed(i,a.command,millis()))return heating::age(millis(),a.changed)>=heat.timeoutMs?"sem confirmação":"pendente";if(!a.known)return "desconhecido";if(a.reported!=a.command)return "pendente";return a.reported?"ligado":"desligado";};
   d["pumpState"] = state(8);
   JsonArray zones = d.createNestedArray("zones");
@@ -781,19 +792,21 @@ void loadHeating() {
   for (unsigned i = 0; i < d["zones"].size(); ++i) heatingZones[i] = names[i];
 }
 void setupWeb() {
-  const char *headers[] = {"X-CSRF-Token"};
-  web.collectHeaders(headers, 1);
+  const char *headers[] = {"X-CSRF-Token","X-Admin-Session"};
+  web.collectHeaders(headers, 2);
   web.on("/", HTTP_GET, [] {
-    if (!auth()) return;
     web.sendHeader("Cache-Control", "no-store");
     web.sendHeader("X-Frame-Options", "DENY");
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
   });
   web.on("/api/heating/layout", HTTP_GET, [] {
-    if (!auth()) return;
+    if(!auth())return;
     DynamicJsonDocument d(16384);
     heatingJson(d);
     sendJson(d);
+  });
+  web.on("/api/heating/status",HTTP_GET,[]{
+    DynamicJsonDocument d(12288);heatingJson(d,false);sendJson(d);
   });
   web.on("/api/heating/layout", HTTP_POST, [] {
     if (!mutation()) return;
@@ -817,7 +830,7 @@ void setupWeb() {
     saveHeatingValues(true);
     hc=control;roomCount=d["zones"].size();heat=heating::Runtime{};heatReadSweep.start(roomCount);
     for(auto &pending:heatFeedbackRead)pending=false;
-    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=0;setpointReceived[i]=false;effective[i]={};roomStatusDirty[i]=true;roomReadCommand[i]=roomReadStatus[i]=false;}
+    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=0;setpointReceived[i]=false;setpointPending[i]=0;setpointFailed[i]=false;effective[i]={};roomStatusDirty[i]=true;roomReadCommand[i]=roomReadStatus[i]=false;}
     heatingLayout = next;
     heat.configure(heatingLayout);
     for (unsigned i = 0; i < roomCount; ++i) heatingZones[i] = names[i];
@@ -827,7 +840,7 @@ void setupWeb() {
     sendJson(response);
   });
   web.on("/api/heating/control",HTTP_POST,[]{
-    if(!mutation())return;
+    if(!publicMutation())return;
     if(!hc.enabled||updating||restarting){error(409,"Aquecimento indisponivel");return;}
     StaticJsonDocument<256>d;
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
@@ -839,6 +852,43 @@ void setupWeb() {
       unsigned i=d["index"];int mode=d["mode"];if(i>=roomCount||mode<0||mode>2){error(400,"Divisao/modo invalido");return;}zoneMode[i]=mode;zoneManualAt[i]=millis();zoneEnabled[i]=mode!=1;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;
     }else{error(409,"Ativa primeiro o controlo");return;}
     web.send(200,"application/json","{\"ok\":true}");
+  });
+  web.on("/api/heating/setpoint",HTTP_POST,[]{
+    if(!publicMutation())return;
+    if(!hc.enabled||updating||restarting||tunnel.state()!=knxip::State::Connected){error(409,"Ligacao KNX indisponivel");return;}
+    StaticJsonDocument<256> d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["index"].is<unsigned>()||(!d["value"].is<float>()&&!d["value"].is<int>())){
+      error(400,"Indica divisao e temperatura");return;
+    }
+    unsigned i=d["index"];float value=d["value"];
+    if(i>=roomCount||!hc.setpoint[i]||!std::isfinite(value)||value<5||value>30||std::fabs(value*2-std::round(value*2))>0.001f){
+      error(400,"Setpoint invalido ou sem grupo KNX");return;
+    }
+    uint8_t bytes[2];
+    if(!sensor::encodeDpt9(value,bytes)){error(400,"Setpoint fora do intervalo KNX");return;}
+    uint32_t token=0x80000000u|(++setpointSerial&0x7fffffffu);
+    if(tunnel.write(hc.setpoint[i],bytes,2,false,token)!=knxip::Result::Queued){error(503,"Fila KNX indisponivel; tenta novamente");return;}
+    setpointPending[i]=token;setpointFailed[i]=false;
+    hz[i].setpoint=value;hz[i].setpointValid=true;setpointReceived[i]=true;
+    heatCache[i].setpointGroup=hc.setpoint[i];heatCache[i].setpoint=value;heatCache[i].hasSetpoint=true;
+    heatCacheDirty=heatCacheUrgent=true;saveHeatingValues(true);
+    if(!heatCacheSaveOk){error(500,"KNX em fila mas falhou gravar na NVS");return;}
+    StaticJsonDocument<128> response;response["queued"]=true;response["value"]=value;sendJson(response);
+  });
+  web.on("/api/admin/login",HTTP_POST,[]{
+    uint32_t now=millis();
+    if(adminBlockedUntil&&int32_t(now-adminBlockedUntil)<0){error(429,"Aguarda antes de tentar novamente");return;}
+    StaticJsonDocument<256>d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["username"].is<const char*>()||!d["password"].is<const char*>()){
+      error(400,"Credenciais invalidas");return;
+    }
+    const char *password=apPassword()[0]?apPassword():config.adminPassword.c_str();
+    if(strcmp(d["username"].as<const char*>(),"admin")||strcmp(d["password"].as<const char*>(),password)){
+      if(++adminFailures>=5){adminBlockedUntil=now+30000;adminFailures=0;}
+      error(401,"Utilizador ou palavra-passe incorretos");return;
+    }
+    adminFailures=0;adminBlockedUntil=0;adminSession=randomSecret();adminLastAt=now;
+    StaticJsonDocument<128> response;response["session"]=adminSession;sendJson(response);
   });
   web.on("/api/config", HTTP_GET, [] {
     if (!auth()) return;
@@ -889,7 +939,7 @@ void setupWeb() {
     scheduleRestart();
   });
   web.on("/api/relay", HTTP_POST, [] {
-    if (!mutation()) return;
+    if (!publicMutation()) return;
     if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
     if (web.arg("plain").length() > 128) { error(413, "Pedido demasiado grande"); return; }
     StaticJsonDocument<256> d;
@@ -902,11 +952,11 @@ void setupWeb() {
     web.send(200, "application/json", "{\"applied\":true}");
   });
   web.on("/api/status", HTTP_GET, [] {
-    if (!auth()) return;
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.2.7-dashboard-order";
+    d["firmware"] = "0.2.8-thermostat-ui";
+    d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     d["rssi"] = WiFi.RSSI();
@@ -1001,8 +1051,7 @@ void setupWeb() {
         }
       });
   web.onNotFound([] {
-    if (auth())
-      error(404, "Nao encontrado");
+    error(404, "Nao encontrado");
   });
   web.begin();
 }
@@ -1095,7 +1144,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.7-dashboard-order. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.8-thermostat-ui. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

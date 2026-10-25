@@ -2,15 +2,24 @@
 
 ## Interface e configuração
 
-O painel apresenta mosaicos das divisões configuradas, com botão de pedido
-vermelho (ligado) ou cinzento (desligado), e o coletor com oito posições, luzes de estado para a bomba e
+O painel público apresenta quatro indicadores: temperatura BME, humidade, pressão
+e hora local do navegador. As duas sondas DS18B20 aparecem apenas na entrada e
+no retorno do coletor. O título reflete o nome configurado e a identificação do
+dispositivo aparece no rodapé. Os mosaicos das divisões mostram o ambiente, o
+setpoint, o pedido, ligar/desligar e o modo automático. O anel fica vermelho com
+pedido de calor, cinzento desligado e verde em espera. O coletor tem oito posições, luzes de estado para a bomba e
 cada cabeça, temperatura de ida (DS18B20 1) e retorno (DS18B20 2). Configure as
 ROM das sondas nessa ordem. Sem uma leitura válida aparece «Sem leitura».
 Verde significa feedback KNX ligado; apagado, desligado; amarelo, divergência
 entre comando e feedback; cinzento, estado desconhecido. Não é medição de caudal
 nem confirmação física da abertura da válvula.
 
-As configurações estão numa vista separada. Em cada divisão pode:
+As configurações estão numa vista separada, aberta pelo ícone de definições.
+O login integrado usa `admin` e a palavra-passe local existente, guarda apenas
+um token de sessão na aba e expira após 30 minutos sem utilização. O painel e
+os seus comandos são públicos nesta rede de testes; as alterações de configuração
+e a atualização OTA exigem sessão de administração. Guardar regressa ao painel.
+Em cada divisão pode:
 
 - editar o nome e os quatro grupos KNX;
 - associar um ou vários circuitos livres;
@@ -65,9 +74,11 @@ Usar «Parar aquecimento» e aguardar antes dessas operações.
 ## Persistência e implementação
 
 A configuração do aquecimento usa `heating/layout` em NVS, separada do schema 2
-principal. Não modifica os pinos, endereço ou driver do BME280 nem as credenciais.
-A autenticação Web continua desativada conforme autorizado para os testes locais;
-as mutações mantêm o token de sessão.
+principal. As temperaturas recebidas e os setpoints enviados são guardados em
+`heating/values`, associados ao endereço KNX de cada divisão, e recuperados após
+reinício. Os botões +/− alteram o setpoint em 0,5 °C (5–30 °C), enviam DPT 9.001
+para o grupo configurado, persistem imediatamente em NVS e mostram o estado de
+envio real do túnel KNX. Não modificam os pinos, endereço ou driver do BME280.
 
 `HeatingRuntime.h` contém o sequenciador usado pelo firmware; `HeatingCore.h`
 conserva o protótipo isolado anterior e o cálculo de histerese. Os testes de host
@@ -162,7 +173,7 @@ não é substituído por 20 °C após cinco minutos.
 
 ### Validação reproduzível
 
-Executar `python scripts/test_host.py` e
+Executar `python scripts/test_host.py`, `node scripts/test_web_ui_minimal.cjs` e
 `NODE_PATH=<pasta com node_modules> node scripts/test_web_ui.cjs` (jsdom instalado).
 
 - Simulação com o mesmo `Runtime` e seletor de comandos usados no ESP: todas as
@@ -190,8 +201,6 @@ feedbacks OFF causados pelo erro antigo como se fossem eventos independentes.
 Isto é validação de software com dados capturados e atuadores simulados; não é
 um ensaio físico do ESP, da bomba, do caudal ou dos tempos reais das cabeças.
 
-Validação desta revisão: suites nativas com UndefinedBehaviorSanitizer e avisos
-como erros, simulação, regressões KNX e DOM passaram. A compilação
-`python -m platformio run -e esp32` passou com as dependências fixadas no projeto:
-52.444 bytes RAM (16,0%) e 976.821 bytes flash (49,7%). A biblioteca OneWire
-2.3.8 emite dois avisos de pré-processamento; não houve erros de compilação.
+A compilação ESP32 e o teste DOM completo correm também no workflow
+`.github/workflows/build.yml` em cada publicação. O teste sem dependências
+cobre o acesso público, o pedido de setpoint de 0,5 °C e o login integrado.
