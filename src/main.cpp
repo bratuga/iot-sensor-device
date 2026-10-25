@@ -608,27 +608,33 @@ void pollTunnel(uint32_t now) {
   tunnel.poll(now);
 }
 void display(uint32_t now) {
-  if (!oledOk || !sensor::elapsed(now, lastDisplay, 1000))
+  if (!oledOk || !sensor::elapsed(now, lastDisplay, 2000))
     return;
   lastDisplay = now;
   oled->clearDisplay();
+  oled->setTextSize(1);
   oled->setCursor(0, 0);
-  oled->println(config.name);
-  oled->println(stateName());
   static unsigned page = 0;
-  page = (page + 1) % 8;
-  if (page < 5) {
-    unsigned i = page;
-    oled->print(config.channel[i].name);
-    oled->print(": ");
-    if (fresh(i, now))
-      oled->println(readings[i].value, i == 2 ? 0 : 1);
-    else
-      oled->println("--");
-  } else if (logCount) {
-    oled->println(logs[(logNext + MaxLogs - 1) % MaxLogs]);
-  } else
-    oled->println(WiFi.localIP());
+  unsigned available[5], count = 0;
+  for (unsigned i = 0; i < 5; ++i)
+    if (((i < 3 && config.bmeEnabled) ||
+         (i >= 3 && config.oneWire >= 0 && !config.rom[i - 3].isEmpty())) && fresh(i, now))
+      available[count++] = i;
+  if (count) {
+    unsigned i = available[page % count];
+    ++page;
+    oled->println(config.channel[i].name.substring(0, 20));
+    // The 128x32 display fits size 2; on 128x64 use size 3 for the
+    // shorter measurements, retaining size 2 for pressure in Pa.
+    oled->setTextSize(config.oledHeight == 64 && i != 2 ? 3 : 2);
+    oled->setCursor(0, config.oledHeight == 64 ? 19 : 12);
+    oled->print(readings[i].value, i == 2 ? 0 : 1);
+    oled->print(i == 1 ? " %" : i == 2 ? " Pa" : " C");
+  } else {
+    oled->setTextSize(2);
+    oled->setCursor(0, config.oledHeight == 64 ? 20 : 12);
+    oled->print("Sem dados");
+  }
   oled->display();
 }
 void scheduleRestart() {
@@ -1182,7 +1188,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.0-settings-thermostat";
+    d["firmware"] = "0.3.1-oled-pump";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -1388,7 +1394,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.0-settings-thermostat. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.1-oled-pump. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

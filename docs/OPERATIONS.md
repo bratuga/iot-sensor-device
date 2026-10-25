@@ -46,7 +46,8 @@ READ/WRITE/FLOAT atuam no barramento real. Usar só grupos de teste autorizados.
 Os comandos não são executados automaticamente. Um retorno `Queued` confirma
 apenas a entrada na fila; os contadores permitem observar confirmações do túnel.
 Cada telegrama de grupo recebido aparece na consola. Os últimos 12 são guardados
-em RAM e mostrados na web; o OLED alterna medições com o último telegrama.
+em RAM e mostrados na web; o OLED mostra apenas sensores com leituras atuais,
+alternando a cada dois segundos com o valor em texto grande, sem endereços KNX.
 Não existe histórico persistente de medições nesta versão.
 
 ## Reconexão

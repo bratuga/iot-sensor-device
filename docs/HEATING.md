@@ -103,8 +103,10 @@ validade é configurável, inicialmente cinco minutos. Setpoint permitido: 5–3
 
 Para arrancar: comandar as válvulas pedidas, receber feedback elétrico ON e
 aguardar o tempo de abertura configurado (inicialmente 120 segundos). Só depois
-comandar a bomba. Mudanças de circuitos param primeiro a bomba e aguardam feedback
-OFF antes de mudar as válvulas. Perda de KNX, falta de feedback ou erro de envio
+comandar a bomba. Quando outra divisão pede calor enquanto a bomba já trabalha
+com um percurso confirmado, abre-se o circuito adicional sem desligar a bomba.
+Para fechar um circuito, para-se primeiro a bomba e aguarda-se feedback OFF
+antes de mudar as válvulas. Perda de KNX, falta de feedback ou erro de envio
 bloqueiam o controlo e pedem OFF da bomba; os percursos existentes são mantidos
 até receber feedback OFF. Uma rede indisponível não permite garantir a execução
 do comando remoto: configure também o comportamento de falha nos atuadores.
@@ -202,8 +204,9 @@ feedback do atuador correspondente. O ACK sozinho não confirma a saída.
 
 Após pedido de calor, o tempo de abertura começa no primeiro feedback ON da
 válvula; telegramas ON repetidos não reiniciam esse tempo. A bomba liga após a
-confirmação e abertura dos circuitos pedidos. Na paragem ou mudança de divisão,
-espera-se o feedback OFF da bomba antes de fechar os circuitos. A bomba só volta
+confirmação e abertura dos circuitos pedidos. Ao adicionar um circuito, a bomba
+permanece ligada enquanto já houver outro percurso confirmado. Na paragem ou
+fecho de um circuito, espera-se o feedback OFF da bomba antes de fechar a válvula. A bomba só volta
 a ligar quando todas as transições dos circuitos utilizados estão confirmadas. Perda de ligação
 exige nova confirmação e reativação manual. Um ON externo da bomba quando está
 pedido OFF provoca um comando OFF e uma falha explícita.

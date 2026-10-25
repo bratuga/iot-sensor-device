@@ -89,8 +89,20 @@ int main(int argc,char **argv){
  {Sim s(8);s.r.openMs=1000;s.boot();s.r.demand[3]=true;s.run(6000);s.step(6010,false);assert(s.r.fault&&!s.r.armed&&s.physical[3]);s.step(6020,true);s.run(10000);assert(!s.physical[8]&&!s.physical[3]);assert(s.r.arm(s.now));}
  // Unsolicited pump ON is answered with OFF and a specific fault, while paths stay open.
  {Sim s(8);s.boot();s.physical[8]=true;s.deliver(8,true);s.step(3010);assert(s.r.failure==Runtime::Failure::UnexpectedPump&&!s.r.armed);s.run(4000);assert(s.r.confirmed(8,false,s.now));}
- // Pump running: changing rooms waits for OFF before closing/opening paths.
- {Sim s(136);s.r.openMs=1000;s.boot();s.r.demand[3]=true;s.run(6000);s.r.demand[3]=false;s.r.demand[7]=true;s.run(10000);assert(!s.r.fault&&s.physical[7]&&!s.physical[3]&&s.physical[8]);}
+ // A second room joins: keep pump continuously ON and command only its valve.
+ {Sim s(136);s.r.openMs=1000;s.boot();s.r.demand[3]=true;s.run(6000);
+  assert(s.physical[8]);unsigned pumpWrites=s.writes[8];s.r.demand[7]=true;
+  for(uint32_t t=6010;t<=9000;t+=10){s.step(t);assert(s.physical[8]&&!s.r.fault);}
+  assert(s.physical[3]&&s.physical[7]&&s.writes[8]==pumpWrites);
+  // Closing one path still waits for pump OFF feedback.
+  s.r.demand[3]=false;s.run(11000);
+  assert(!s.r.fault&&s.physical[7]&&!s.physical[3]&&s.physical[8]&&s.writes[8]==pumpWrites+2);
+ }
+ {Sim s(136);s.r.openMs=1000;s.boot();s.r.demand[3]=true;s.run(6000);
+  unsigned pumpWrites=s.writes[8];s.r.demand[3]=false;s.r.demand[7]=true;
+  for(uint32_t t=6010;t<=7200;t+=10){s.step(t);assert(!s.r.fault);}
+  s.run(8500);assert(!s.physical[3]&&s.physical[7]&&s.physical[8]&&s.writes[8]==pumpWrites+2);
+ }
  // Seeded changing demand with asynchronous feedback: no pump/path invariant violations.
  for(unsigned seed=1;seed<=32;++seed){
   Sim s(254);s.r.openMs=1000;s.boot();unsigned random=seed;

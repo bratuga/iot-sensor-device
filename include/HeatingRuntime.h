@@ -46,8 +46,8 @@ struct Runtime {
   bool armed = false, fault = false, connected = false, unexpectedPump = false;
   uint32_t openMs = 120000, timeoutMs = 30000;
 
-  // Shared by firmware and simulator: one command, pump first; unused ports
-  // never generate traffic. Keep paths unchanged until pump OFF is confirmed.
+  // Shared by firmware and simulator: one command at a time; unused ports
+  // never generate traffic. Never remove the last open path under a running pump.
   int nextCommand(uint32_t now) const {
     for(unsigned k=0;k<9;++k){unsigned i=(k+Pump)%9;
       if(!active(i) || output[i].sent) continue;
@@ -141,18 +141,23 @@ struct Runtime {
       }
       return;
     }
-    bool changed = false, any = false, ready = true;
+    bool any = false, closing = false, ready = true;
     for (unsigned i = 0; i < 8; ++i) {
       if(!active(i)) continue;
-      changed |= demand[i] != output[i].command;
       any |= demand[i];
+      closing |= output[i].command && !demand[i];
     }
     if (output[Pump].command) {
       bool path = false;
       for (unsigned i = 0; i < 8; ++i)
         path |= active(i) && output[i].command && confirmed(i, true, now);
       if (!path) { trip(now,Failure::PathLost); return; }
-      if (changed || !any) set(Pump, false, now);
+      // Opening another room cannot remove the existing confirmed path and
+      // therefore does not require cycling the pump. A path that needs to
+      // close still follows the pump-OFF / feedback / valve sequence.
+      if (!any || closing) set(Pump, false, now);
+      else for (unsigned i = 0; i < 8; ++i)
+        if (active(i) && demand[i]) set(i, true, now);
     }
     if (!output[Pump].command) {
       if (!confirmed(Pump, false, now)) {
