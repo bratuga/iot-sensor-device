@@ -10,12 +10,19 @@ setpoint, o pedido, ligar/desligar e o modo automático. O anel fica vermelho co
 pedido de calor, cinzento desligado e verde em espera. O coletor tem oito posições, luzes de estado para a bomba e
 cada cabeça, temperatura de ida (DS18B20 1) e retorno (DS18B20 2). Configure as
 ROM das sondas nessa ordem. Sem uma leitura válida aparece «Sem leitura».
+O coletor usa as oito colunas disponíveis sem largura mínima nem deslocamento
+horizontal; rotor, indicadores e contagem de circuitos mostram exclusivamente o
+feedback KNX, sem temporizadores simulados. Os seus ícones não comandam a bomba
+nem uma válvula isolada: usam-se os comandos seguros do painel/divisões.
+Os relés e a secção de saídas aparecem apenas quando há relés configurados;
+o diagnóstico fica abaixo e pode ser ocultado nas configurações.
 Verde significa feedback KNX ligado; apagado, desligado; amarelo, divergência
 entre comando e feedback; cinzento, estado desconhecido. Não é medição de caudal
 nem confirmação física da abertura da válvula.
 
 As configurações estão numa vista separada, aberta pelo ícone de definições.
-O login integrado usa `admin` e a palavra-passe local existente, guarda apenas
+O login integrado usa `admin` e a palavra-passe de administração conservada no
+JSON de configuração em NVS (não a palavra-passe opcional do AP em `secrets.h`), guarda apenas
 um token de sessão na aba e expira após 30 minutos sem utilização. O painel e
 os seus comandos são públicos nesta rede de testes; as alterações de configuração
 e a atualização OTA exigem sessão de administração. Guardar regressa ao painel.
@@ -76,9 +83,11 @@ Usar «Parar aquecimento» e aguardar antes dessas operações.
 A configuração do aquecimento usa `heating/layout` em NVS, separada do schema 2
 principal. As temperaturas recebidas e os setpoints enviados são guardados em
 `heating/values`, associados ao endereço KNX de cada divisão, e recuperados após
-reinício. Os botões +/− alteram o setpoint em 0,5 °C (5–30 °C), enviam DPT 9.001
-para o grupo configurado, persistem imediatamente em NVS e mostram o estado de
-envio real do túnel KNX. Não modificam os pinos, endereço ou driver do BME280.
+reinício. Os botões +/− alteram o setpoint em 0,5 °C (5–30 °C). O valor aparece
+logo no mosaico, mas cada divisão espera cinco segundos sem novos toques antes
+de enviar um único DPT 9.001 ao seu grupo KNX. Ao colocar o envio em fila,
+persiste o valor em NVS e mostra o estado real do túnel KNX. Não modifica os
+pinos, endereço ou driver do BME280.
 
 `HeatingRuntime.h` contém o sequenciador usado pelo firmware; `HeatingCore.h`
 conserva o protótipo isolado anterior e o cálculo de histerese. Os testes de host

@@ -17,7 +17,7 @@ struct RelayConfig {
 };
 struct Config {
   String name = "iot-sensor", ssid, wifiPassword, adminPassword;
-  bool knxEnabled = false, bmeEnabled = false, oledEnabled = false;
+  bool knxEnabled = false, bmeEnabled = false, oledEnabled = false, showDiagnostics = true;
   String gateway;
   uint16_t port = 3671, rate = 5;
   int sda = -1, scl = -1, oledSda = -1, oledScl = -1;

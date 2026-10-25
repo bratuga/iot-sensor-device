@@ -35,8 +35,15 @@ GPIO16/17 podem estar ocupados em módulos com PSRAM. Os pinos de flash, USB
 serial e os de entrada apenas são excluídos. Use -1 para desativar OneWire ou
 reset do OLED. O reset OLED não é um comando de alimentação/Vext.
 
-OLED: apenas SSD1306 I2C, largura 128 e altura 32/64. Placas que necessitem de
-Vext ou outro controlador precisam de um perfil adicional após identificação.
+OLED: apenas SSD1306 I2C, largura 128 e altura 32/64. Para o WiFi Kit 32
+V2/V2.1 (ESP32 clássico), o botão **Aplicar pinos do OLED integrado** preenche
+SDA=4, SCL=15, reset=16, endereço=60 (0x3C) e altura=64; depois ativar,
+guardar e reiniciar. O BME280 conserva o seu barramento separado SDA=23,
+SCL=22 e endereço=119. O firmware liberta o reset do OLED antes de procurar
+o endereço I²C; o monitor série mostra os pinos, o scan e o resultado da
+inicialização. Verificar primeiro se a revisão física é realmente V2/V2.1;
+não aplicar este perfil ao WiFi Kit 32 V3 (ESP32-S3). Placas com outro
+controlador ou alimentação separada precisam dos pinos/perfil correspondentes.
 
 ## Configuração inicial em duas fases
 

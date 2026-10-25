@@ -4,11 +4,11 @@ w.eval(`heatingPlan={outputsEnabled:false,armed:false,fault:false,pumpState:'des
 d.getElementById('addRoom').click();d.getElementById('addRoom').click();
 function click(id,text){[...d.querySelectorAll('#'+id+' button')].find(b=>b.textContent===text).click();}
 click('hz0','Associar circuito');click('hz0','Associar circuito');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),2);
-d.getElementById('zone0').value='Sala';w.eval('captureHeating();heatingPlan.pumpState="ligado";renderHeatStatus();');assert.equal(d.getElementById('zone0').value,'Sala');assert(d.querySelector('#pumpState .on'));
+d.getElementById('zone0').value='Sala';w.eval('captureHeating();heatingPlan.pumpState="ligado";renderHeatStatus();');assert.equal(d.getElementById('zone0').value,'Sala');assert.equal(d.getElementById('pumpState').dataset.state,'running');
 click('hz1','Associar circuito');click('hz0','Remover divisão');assert.equal(w.eval('heatingDraft.zones.length'),1);assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),1);assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===-1).length'),7);
 click('hz0','Retirar');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===-1).length'),8);
 for(let i=0;i<8;i++)click('hz0','Associar circuito');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),8);assert([...d.querySelectorAll('#hz0 button')].find(b=>b.textContent==='Associar circuito').disabled);
-w.eval('heatingPlan=JSON.parse(JSON.stringify(heatingDraft));heatingPlan.circuits[7].state="ligado";renderHeatStatus();');assert.equal(d.querySelectorAll('#branches .on').length,2);assert.equal(d.querySelectorAll('#branches .branch').length,8);
+w.eval('heatingPlan=JSON.parse(JSON.stringify(heatingDraft));heatingPlan.circuits[7].state="ligado";renderHeatStatus();');assert.equal(d.querySelectorAll('#branches .collector-circuit[data-active="true"]').length,1);assert.equal(d.querySelectorAll('#branches .collector-circuit').length,8);
 console.log('PASS DOM: dynamic rooms, multiple/eight associations, remove/reindex/release, draft preserved during refresh, pump and head lights');
 
 w.eval('heatingPlan.armed=true;heatingPlan.control.rooms[0].mode=2;renderHeatStatus();');assert.equal(d.querySelector('#rooms .power').getAttribute('aria-pressed'),'true');
@@ -24,10 +24,10 @@ w.eval('heatingPlan.outputsEnabled=true;heatingPlan.armed=false;heatingPlan.canA
 assert(d.getElementById('armHeat').disabled);
 assert(d.getElementById('heatMessage').textContent.includes('Circuito 4'));
 assert(!d.getElementById('pumpState').textContent.includes('Falha'));
-assert(d.getElementById('pumpState').textContent.includes('desligado'));
+assert(d.getElementById('pumpStatus').textContent.includes('Parada'));
 w.eval('heatingPlan.canArm=true;renderHeatStatus();');assert(!d.getElementById('armHeat').disabled);
 w.eval('heatingPlan.circuits[0].zone=-1;heatingPlan.circuits[0].state="nao utilizado";renderHeatStatus();');
-assert(d.querySelector('#branches .branch.unused').textContent.includes('Sem circuito'));
+assert(d.querySelector('#branches .collector-circuit[data-available="false"]').getAttribute('aria-label').includes('não ligada'));
 console.log('PASS unused circuit, specific fault separate from pump, arm only after used outputs confirmed OFF');
 
 // Commands still come from the real heating state, and setpoint buttons use the dedicated API.
@@ -47,3 +47,19 @@ w.eval('var lastSetpoint;changeSetpoint=(...args)=>{lastSetpoint=args;};');
 d.querySelector('.increase').click();assert.equal(w.eval('JSON.stringify(lastSetpoint)'),JSON.stringify([0,0.5]));
 d.querySelector('.decrease').click();assert.equal(w.eval('JSON.stringify(lastSetpoint)'),JSON.stringify([0,-0.5]));
 console.log('PASS thermostat layout, demand, power/mode and setpoint events');
+
+for(const id of ['oledEnabled','oledSda','oledScl','oledReset','oledAddress','oledHeight']){const input=d.createElement('input');input.id=id;d.body.append(input);}
+d.getElementById('oledPreset').click();
+assert.equal(d.getElementById('oledEnabled').checked,true);
+assert.deepEqual(['oledSda','oledScl','oledReset','oledAddress','oledHeight'].map(id=>d.getElementById(id).value),['4','15','16','60','64']);
+assert(html.indexOf('id="relaySection"')<html.indexOf('id="diagnosticSection"'));
+assert(html.includes('grid-template-columns:repeat(8,minmax(0,1fr))'));
+console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
+
+(async()=>{const status={name:'Teste',ip:'10.10.5.28',knx:'ligado',firmware:'teste',csrf:'token',rssi:-70,freeHeap:200000,uptimeMs:1000,bme:true,oled:true,i2cMain:'0x77',i2cOled:'0x3C',individual:'1.1.1',sent:1,acked:1,failed:0,lastEvent:'OK',channels:Array.from({length:5},()=>({valid:false,unit:'°C'})),roms:[],telegrams:[],relays:Array.from({length:4},(_,i)=>({name:'Relé '+i,enabled:false,on:false,gpio:25,feedbackPending:false})),showDiagnostics:false};
+ w.fetch=async()=>({ok:true,json:async()=>status});await w.eval('refresh()');
+ assert(d.getElementById('relaySection').hidden);assert(d.getElementById('diagnosticSection').hidden);assert.equal(d.querySelectorAll('#outputs .card').length,0);
+ status.relays[1].enabled=true;status.showDiagnostics=true;await w.eval('refresh()');
+ assert(!d.getElementById('relaySection').hidden);assert(!d.getElementById('diagnosticSection').hidden);assert.equal(d.querySelectorAll('#outputs .card').length,1);
+ console.log('PASS only configured relays visible; diagnostic visibility follows saved option');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -24,6 +24,7 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["rate"] = c.rate;
   d["bmeEnabled"] = c.bmeEnabled;
   d["oledEnabled"] = c.oledEnabled;
+  d["showDiagnostics"] = c.showDiagnostics;
   d["sda"] = c.sda;
   d["scl"] = c.scl;
   d["oledSda"] = c.oledSda;
@@ -107,6 +108,9 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
   c.knxEnabled = d["knxEnabled"];
   c.bmeEnabled = d["bmeEnabled"];
   c.oledEnabled = d["oledEnabled"];
+  if (d.containsKey("showDiagnostics") && !d["showDiagnostics"].is<bool>())
+    return bad("Opcao de diagnostico invalida");
+  c.showDiagnostics = d["showDiagnostics"] | true;
   int port = d["port"], rate = d["rate"], sample = d["sampleMs"];
   if (port < 1 || port > 65535 || rate < 1 || rate > 20 || sample < 2000 || sample > 60000)
     return bad("Porta, limite KNX ou intervalo de leitura invalido");

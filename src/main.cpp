@@ -287,8 +287,22 @@ void initSensors() {
   if (config.oledEnabled && !sharedOled) {
     oledWire.setPins(config.oledSda, config.oledScl);
     oledWire.begin();
-    oledWire.setTimeOut(25);
+    oledWire.setClock(100000);
+    oledWire.setTimeOut(50);
     displayBus = &oledWire;
+  }
+  if (config.oledEnabled && config.oledReset >= 0) {
+    // The built-in OLED can remain in reset across a software reboot. Release it
+    // before the address scan so the scan reflects the actual display bus.
+    digitalWrite(config.oledReset, HIGH);
+    pinMode(config.oledReset, OUTPUT);
+    delay(5);
+    digitalWrite(config.oledReset, LOW);
+    delay(10);
+    digitalWrite(config.oledReset, HIGH);
+    delay(50);
+  }
+  if (config.oledEnabled && !sharedOled) {
     oledI2cScan = scanI2c(oledWire);
     Serial.println("I2C OLED: SDA=" + String(config.oledSda) + " SCL=" + String(config.oledScl) +
                    " encontrados=" + oledI2cScan);
@@ -324,6 +338,11 @@ void initSensors() {
     oledOk = oled->begin(SSD1306_SWITCHCAPVCC, config.oledAddress, true, false);
     displayBus->beginTransmission(config.oledAddress);
     oledOk = (displayBus->endTransmission() == 0) && oledOk;
+    Serial.println("OLED: SDA=" + String(config.oledSda < 0 ? config.sda : config.oledSda) +
+                   " SCL=" + String(config.oledScl < 0 ? config.scl : config.oledScl) +
+                   " RST=" + String(config.oledReset) +
+                   " endereco=0x" + String(config.oledAddress, HEX) +
+                   (oledOk ? " pronto" : " nao detetado/inicializacao falhou"));
     if (oledOk) {
       oled->clearDisplay();
       oled->setTextSize(1);
@@ -819,6 +838,7 @@ void setupWeb() {
     String names[MaxRooms];
     HeatConfig control;
     if (!heatingSafe()) { error(409,"Para o aquecimento e aguarda feedback da bomba antes de configurar"); return; }
+    for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda confirmacao do setpoint KNX antes de alterar as divisoes");return;}
     if (!parseHeating(d, next, names)||!parseHeatConfig(d,control)) {
       error(400, "Divisao, circuito ou posicao repetida/invalida"); return;
     }
@@ -882,7 +902,7 @@ void setupWeb() {
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["username"].is<const char*>()||!d["password"].is<const char*>()){
       error(400,"Credenciais invalidas");return;
     }
-    const char *password=apPassword()[0]?apPassword():config.adminPassword.c_str();
+    const char *password=config.adminPassword.c_str();
     if(strcmp(d["username"].as<const char*>(),"admin")||strcmp(d["password"].as<const char*>(),password)){
       if(++adminFailures>=5){adminBlockedUntil=now+30000;adminFailures=0;}
       error(401,"Utilizador ou palavra-passe incorretos");return;
@@ -955,7 +975,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.2.8-thermostat-ui";
+    d["firmware"] = "0.2.9-collector-oled";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -966,6 +986,7 @@ void setupWeb() {
     d["individual"] = individualText(tunnel.individualAddress());
     d["bme"] = bmeOk;
     d["oled"] = oledOk;
+    d["showDiagnostics"] = config.showDiagnostics;
     d["i2cMain"] = bmeI2cScan;
     d["i2cOled"] = oledI2cScan;
     d["lastEvent"] = lastEvent;
@@ -1144,7 +1165,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.8-thermostat-ui. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.9-collector-oled. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
