@@ -29,33 +29,24 @@ class Bme280Direct {
     h6_ = int8_t(humidity[6]);
     error_ = "calibracao invalida";
     if (!t1_ || !p1_) return false;
-    // Humidity oversampling must precede ctrl_meas to take effect.
+    // Humidity oversampling must precede ctrl_meas to take effect. In normal
+    // mode the BME keeps the data registers current without a ctrl_meas write
+    // for every sample (which some boards NACK after initialisation).
     error_ = "configuracao I2C";
-    if (!write(0xF2, 0x01) || !write(0xF5, 0x00) || !write(0xF4, 0x24))
-      return false; // sleep mode, x1 temperature and pressure
+    if (!write(0xF2, 0x01) || !write(0xF5, 0xA0) || !write(0xF4, 0x27))
+      return false; // 1000 ms standby; x1 humidity, temperature and pressure
+    delay(15); // first conversion completes before the first sample
     ready_ = true;
     return true;
   }
 
   bool sample(float &temperature, float &humidity, float &pressure) {
     if (!ready_) return false;
-    // Each forced conversion is a single coherent sample. At x1/x1/x1 the
-    // Bosch worst-case conversion time is 9.3 ms; wait, then check measuring.
-    error_ = "iniciar medicao";
-    if (!write(0xF4, 0x25)) { ready_ = false; return false; }
-    delay(10);
-    error_ = "aguardar medicao";
-    uint8_t status = 0;
-    bool finished = false;
-    for (unsigned attempt = 0; attempt < 20; ++attempt) {
-      if (!read(0xF3, &status, 1)) { ready_ = false; return false; }
-      if ((status & 0x08) == 0) { finished = true; break; }
-      delay(1);
-    }
-    if (!finished) return false;
+    // Bosch requires a single burst from 0xF7 to 0xFE in normal mode: STOP
+    // releases the shadow registers together, so values cannot mix cycles.
     uint8_t raw[8];
     error_ = "dados I2C";
-    if (!read(0xF7, raw, sizeof(raw))) { ready_ = false; return false; }
+    if (!readDataBurst(raw)) { ready_ = false; return false; }
     int32_t adcP = (int32_t(raw[0]) << 12) | (int32_t(raw[1]) << 4) | (raw[2] >> 4);
     int32_t adcT = (int32_t(raw[3]) << 12) | (int32_t(raw[4]) << 4) | (raw[5] >> 4);
     int32_t adcH = (int32_t(raw[6]) << 8) | raw[7];
@@ -128,6 +119,20 @@ class Bme280Direct {
       if (!received) return false;
     }
     return true;
+  }
+  bool readDataBurst(uint8_t *bytes) {
+    lastRegister_ = 0xF7;
+    for (unsigned attempt = 0; attempt < 4; ++attempt) {
+      bus_->beginTransmission(address_);
+      bus_->write(lastRegister_);
+      if (bus_->endTransmission(true) == 0 &&
+          bus_->requestFrom(address_, uint8_t(8)) == 8) {
+        for (uint8_t i = 0; i < 8; ++i) bytes[i] = bus_->read();
+        return true;
+      }
+      delay(5);
+    }
+    return false;
   }
   TwoWire *bus_ = nullptr;
   uint8_t address_ = 0;

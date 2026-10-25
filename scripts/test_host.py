@@ -13,4 +13,7 @@ for name in ("core", "heating", "heating_runtime", "heating_simulation"):
     exe = build / (name + "_tests" + (".exe" if sys.platform == "win32" else ""))
     subprocess.run([compiler, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(root / "include"), str(root / ("test/" + name + "_tests.cpp")), "-o", str(exe)], check=True)
     subprocess.run([str(exe)] + ([str(root / "test/fixtures/knx_v4_feedback.txt")] if name == "heating_simulation" else []), check=True)
+bme_exe = build / ("bme280_tests" + (".exe" if sys.platform == "win32" else ""))
+subprocess.run([compiler, "-std=c++14", "-Wall", "-Wextra", "-Werror", "-fsanitize=undefined", "-fno-sanitize-recover=all", "-I", str(root / "test/bme_fakes"), "-I", str(root / "include"), str(root / "test/bme280_tests.cpp"), "-o", str(bme_exe)], check=True)
+subprocess.run([str(bme_exe)], check=True)
 subprocess.run([sys.executable, str(root / "lib/knx-tunneling/scripts/run_tests.py"), "--compiler", compiler, "--sanitize"], check=True)

@@ -60,6 +60,13 @@ publicação são independentes. `periodMs` aceita 2 s–24 h; `minGapMs` aceita
 1 s–1 h e não pode exceder `periodMs`. O limite global do dispositivo é de
 1–20 telegramas/s, por omissão 5. É necessário dimensionar a soma dos dispositivos.
 
+O BME280 usa modo normal (x1 temperatura, pressão e humidade, pausa de 1000 ms).
+O `ctrl_meas` é escrito apenas na inicialização; as amostras são lidas num único
+burst I²C após STOP, como recomendado pela Bosch para manter os três valores
+do mesmo ciclo. Isto evita as escritas periódicas ao registo `0xF4` que falhavam
+em alguns arranques. Se aparecer `BME amostra falhou: dados I2C reg=0xf7`,
+verificar pelo monitor série o estado do barramento e a alimentação do módulo.
+
 ## Mapa KNX sugerido — reservar antes de ativar
 
 | Medição | Grupo ilustrativo | DPT | Unidade transmitida |

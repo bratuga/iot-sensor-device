@@ -3,8 +3,11 @@
 ## Acesso web
 
 Utilizador `admin`; password gerada no primeiro arranque e conservada em NVS.
-O comando `SETUP` na consola USB mostra a password atual e ativa o AP protegido.
-A password pode ser alterada na web. Não existe password padrão igual em todos
+O comando `SETUP` na consola USB mostra a password do AP e a password Web
+guardada no JSON da NVS, e ativa o AP protegido. Durante os testes, compilações
+locais com `LOCAL_AP_PASSWORD` também aceitam essa password no login Web como
+alternativa, sem alterar a configuração guardada. Compilações obtidas do CI sem
+`secrets.h` continuam a usar apenas a password Web guardada. Não existe password padrão igual em todos
 os dispositivos. Depois de ligado à LAN, consultar o IP na consola ou tentar
 `http://<nome-do-dispositivo>.local` num cliente com mDNS.
 
@@ -25,7 +28,7 @@ autenticação e o token CSRF obtido após autenticação.
 | --- | --- |
 | `HELP` | Lista comandos |
 | `STATUS` | Mostra IP e estado KNX |
-| `SETUP` | Abre AP e mostra password ao operador local |
+| `SETUP` | Abre AP e mostra as passwords do AP e do Web ao operador local |
 | `READ 2/0/1` | Envia GroupValueRead |
 | `WRITE 2/1/1 1` | Envia booleano DPT1 |
 | `FLOAT 2/0/1 21.5` | Envia valor DPT9 |

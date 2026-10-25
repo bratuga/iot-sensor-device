@@ -902,8 +902,14 @@ void setupWeb() {
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["username"].is<const char*>()||!d["password"].is<const char*>()){
       error(400,"Credenciais invalidas");return;
     }
-    const char *password=config.adminPassword.c_str();
-    if(strcmp(d["username"].as<const char*>(),"admin")||strcmp(d["password"].as<const char*>(),password)){
+    const char *password=d["password"].as<const char*>();
+    bool valid=strcmp(password,config.adminPassword.c_str())==0;
+#ifdef LOCAL_AP_PASSWORD
+    // Local test builds historically used this password for access. Keep it
+    // as a compatibility credential without replacing the persisted NVS JSON.
+    if(LOCAL_AP_PASSWORD[0])valid=valid||strcmp(password,LOCAL_AP_PASSWORD)==0;
+#endif
+    if(strcmp(d["username"].as<const char*>(),"admin")||!valid){
       if(++adminFailures>=5){adminBlockedUntil=now+30000;adminFailures=0;}
       error(401,"Utilizador ou palavra-passe incorretos");return;
     }
@@ -975,7 +981,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.2.9-collector-oled";
+    d["firmware"] = "0.2.10-bme-login";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -1103,7 +1109,8 @@ void serialCommands() {
     } else if (line == "SETUP") {
       openAp();
       Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      Serial.println("Web: sem login durante os testes");
+      Serial.println("Password admin Web (NVS): " + config.adminPassword);
+      Serial.println("Web: utilizador admin; login na pagina Configuracoes");
     } else if (line == "REBOOT") {
       scheduleRestart();
     } else {
@@ -1165,7 +1172,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.9-collector-oled. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.2.10-bme-login. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

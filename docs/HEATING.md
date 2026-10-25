@@ -22,7 +22,10 @@ nem confirmação física da abertura da válvula.
 
 As configurações estão numa vista separada, aberta pelo ícone de definições.
 O login integrado usa `admin` e a palavra-passe de administração conservada no
-JSON de configuração em NVS (não a palavra-passe opcional do AP em `secrets.h`), guarda apenas
+JSON de configuração em NVS. Durante estes testes, uma compilação local que inclua
+`LOCAL_AP_PASSWORD` em `secrets.h` também aceita essa palavra-passe como alternativa;
+não altera a configuração persistida. `SETUP` na consola USB mostra ambas as
+palavras-passe atuais para recuperar o acesso sem apagar as configurações. Guarda apenas
 um token de sessão na aba e expira após 30 minutos sem utilização. O painel e
 os seus comandos são públicos nesta rede de testes; as alterações de configuração
 e a atualização OTA exigem sessão de administração. Guardar regressa ao painel.
