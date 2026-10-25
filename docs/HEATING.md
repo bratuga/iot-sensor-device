@@ -1,5 +1,37 @@
 # Aquecimento por divisões e coletor KNX
 
+## Configurações 0.3.0
+
+As configurações têm quatro separadores: **Funcionalidades** (escolha do modo,
+divisões e associações, sensores, relés e entradas), **KNX** (apenas os canais
+selecionados, grupos de receção e envio), **Hardware** (GPIO, I²C, ROM, OLED)
+e **Configuração** (rede, nome, diagnóstico, firmware, backup e terminal).
+Guardar as configurações gerais reinicia o ESP; o mapa do coletor tem um botão
+de gravação separado. Os campos ocultos ao trocar de separador mantêm o que foi
+digitado até guardar ou sair.
+
+O modo **Termóstato de divisão** é exclusivo do controlo do coletor. Exige
+BME280 ativo, KNX ligado e publicação da temperatura BME no canal 1 DPT 9.001.
+Configure também um grupo DPT 9.001 para o setpoint, e dois grupos DPT 1.001
+distintos para o pedido e respetivo feedback. O mosaico principal mostra a
+temperatura BME e permite ligar/desligar e ajustar o setpoint em passos de
+0,5 °C; só envia o novo valor KNX 5 segundos após o último toque. O setpoint
+e o estado ligado/desligado são persistidos na NVS. O pedido de calor liga
+abaixo de setpoint − margem, desliga acima de setpoint + margem e conserva o
+estado entre esses limiares. Falha ou expiração da leitura local desliga o
+pedido; o mosaico só considera a ação concluída depois do feedback KNX.
+Não há comando de bomba, válvulas ou divisões enquanto este modo está ativo.
+O mapa do coletor continua guardado para regressar mais tarde. Desliga primeiro
+o termóstato e aguarda feedback OFF antes de regressar ao coletor.
+
+O terminal em Configuração mostra os 48 telegramas mais recentes guardados em
+RAM, atualizados pela página sem voltar a ler grupos no barramento. Permite
+GroupValueRead e escrita DPT 1.001/9.xxx apenas a uma sessão de administração.
+Uma resposta «na fila» ainda não confirma a entrega no barramento.
+O backup exporta a configuração e o mapa sem passwords; no restauro conservam-se
+as passwords que estão atualmente na NVS. O restauro exige que o aquecimento
+esteja parado e reinicia o dispositivo.
+
 ## Interface e configuração
 
 O painel público apresenta quatro indicadores: temperatura BME, humidade, pressão

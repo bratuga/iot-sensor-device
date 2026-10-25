@@ -30,6 +30,12 @@ adequados ao comprimento real do barramento.
 
 Os GPIO disponíveis neste perfil são 4, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23,
 25, 26, 27, 32 e 33. Isto não significa que todos estejam livres em cada placa.
+As entradas digitais opcionais também podem usar GPIO 34, 35, 36 e 39, que não
+dispõem de pull-up/pull-down interno: precisam de resistência externa. Para os outros
+GPIO de entrada, o firmware usa `INPUT_PULLUP` (ativo a nível baixo) ou
+`INPUT_PULLDOWN` (ativo a nível alto), leitura estabilizada após 50 ms
+e publicação DPT 1.001 apenas quando o valor muda (e uma vez após reconectar).
+O grupo pode ficar vazio para usar a entrada apenas como indicação local.
 GPIO15 é um pino de strapping: confirmar o circuito da placa antes de usar.
 GPIO16/17 podem estar ocupados em módulos com PSRAM. Os pinos de flash, USB
 serial e os de entrada apenas são excluídos. Use -1 para desativar OneWire ou

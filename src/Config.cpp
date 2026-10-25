@@ -10,6 +10,7 @@ String randomSecret() {
   return String(b);
 }
 static bool pin(int p) { return device::outputPin(p); }
+static bool inputPin(int p) { return pin(p) || p == 34 || p == 35 || p == 36 || p == 39; }
 void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["schema"] = 2;
   d["name"] = c.name;
@@ -25,6 +26,14 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["bmeEnabled"] = c.bmeEnabled;
   d["oledEnabled"] = c.oledEnabled;
   d["showDiagnostics"] = c.showDiagnostics;
+  d["thermostatMode"] = c.thermostatMode;
+  d["thermostatOn"] = c.thermostatOn;
+  d["thermostatName"] = c.thermostatName;
+  d["thermostatSetpointGroup"] = c.thermostatSetpointGroup;
+  d["thermostatDemandGroup"] = c.thermostatDemandGroup;
+  d["thermostatFeedbackGroup"] = c.thermostatFeedbackGroup;
+  d["thermostatSetpoint"] = c.thermostatSetpoint;
+  d["thermostatMargin"] = c.thermostatMargin;
   d["sda"] = c.sda;
   d["scl"] = c.scl;
   d["oledSda"] = c.oledSda;
@@ -43,6 +52,12 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
     o["commandGroup"] = r.commandGroup; o["feedbackGroup"] = r.feedbackGroup;
   }
   JsonArray rom = d.createNestedArray("rom");
+  JsonArray inputs = d.createNestedArray("inputs");
+  for (const auto &in : c.input) {
+    JsonObject o = inputs.createNestedObject();
+    o["name"] = in.name; o["enabled"] = in.enabled; o["gpio"] = in.gpio;
+    o["activeLow"] = in.activeLow; o["group"] = in.group;
+  }
   rom.add(c.rom[0]);
   rom.add(c.rom[1]);
   JsonArray a = d.createNestedArray("channels");
@@ -111,6 +126,36 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
   if (d.containsKey("showDiagnostics") && !d["showDiagnostics"].is<bool>())
     return bad("Opcao de diagnostico invalida");
   c.showDiagnostics = d["showDiagnostics"] | true;
+  if ((d.containsKey("thermostatMode") && !d["thermostatMode"].is<bool>()) ||
+      (d.containsKey("thermostatOn") && !d["thermostatOn"].is<bool>()))
+    return bad("Modo de termostato invalido");
+  c.thermostatMode = d["thermostatMode"] | false;
+  c.thermostatOn = d["thermostatOn"] | false;
+  if (d.containsKey("thermostatName")) {
+    if (!d["thermostatName"].is<const char *>()) return bad("Nome do termostato invalido");
+    c.thermostatName = d["thermostatName"].as<String>();
+  }
+  const char *thermoKeys[] = {"thermostatSetpointGroup", "thermostatDemandGroup", "thermostatFeedbackGroup"};
+  String *thermoValues[] = {&c.thermostatSetpointGroup, &c.thermostatDemandGroup,
+                            &c.thermostatFeedbackGroup};
+  for (unsigned i = 0; i < 3; ++i) {
+    if (d.containsKey(thermoKeys[i])) {
+      if (!d[thermoKeys[i]].is<const char *>()) return bad("Grupo do termostato invalido");
+      *thermoValues[i] = d[thermoKeys[i]].as<String>();
+    }
+  }
+  if (d.containsKey("thermostatSetpoint")) {
+    if (!d["thermostatSetpoint"].is<float>()) return bad("Setpoint invalido");
+    c.thermostatSetpoint = d["thermostatSetpoint"];
+  }
+  if (d.containsKey("thermostatMargin")) {
+    if (!d["thermostatMargin"].is<float>()) return bad("Histerese invalida");
+    c.thermostatMargin = d["thermostatMargin"];
+  }
+  if (c.thermostatName.isEmpty() || c.thermostatName.length() > 32 ||
+      !std::isfinite(c.thermostatSetpoint) || c.thermostatSetpoint < 5 || c.thermostatSetpoint > 30 ||
+      !std::isfinite(c.thermostatMargin) || c.thermostatMargin < 0.1f || c.thermostatMargin > 5)
+    return bad("Parametros do termostato invalidos");
   int port = d["port"], rate = d["rate"], sample = d["sampleMs"];
   if (port < 1 || port > 65535 || rate < 1 || rate > 20 || sample < 2000 || sample > 60000)
     return bad("Porta, limite KNX ou intervalo de leitura invalido");
@@ -251,6 +296,72 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
         if (commands[i] == commands[j] || commands[i] == feedbacks[j] ||
             feedbacks[i] == commands[j] || feedbacks[i] == feedbacks[j])
           return bad("Cada rele deve ter grupos KNX exclusivos");
+      }
+    }
+  }
+  uint16_t reserved[3] = {};
+  const String thermoGroups[] = {c.thermostatSetpointGroup, c.thermostatDemandGroup, c.thermostatFeedbackGroup};
+  for (unsigned i = 0; i < 3; ++i) {
+    if (thermoGroups[i].length() && !sensor::parseGroup(thermoGroups[i].c_str(), reserved[i]))
+      return bad("Grupo KNX do termostato invalido");
+    if (!c.thermostatMode) continue;
+    if (!reserved[i]) return bad("Termostato exige setpoint, pedido e feedback KNX");
+    for (unsigned j = 0; j < i; ++j)
+      if (reserved[j] == reserved[i]) return bad("Grupos do termostato repetidos");
+    for (unsigned j = 0; j < 5; ++j)
+      if (c.channel[j].enabled && groups[j] == reserved[i]) return bad("Grupo do termostato em conflito com sensor");
+    for (const auto &r : c.relay) {
+      uint16_t g;
+      if (r.enabled && ((sensor::parseGroup(r.commandGroup.c_str(), g) && g == reserved[i]) ||
+                        (sensor::parseGroup(r.feedbackGroup.c_str(), g) && g == reserved[i])))
+        return bad("Grupo do termostato em conflito com rele");
+    }
+  }
+  if (c.thermostatMode && (!c.bmeEnabled || !c.knxEnabled || !c.channel[0].enabled))
+    return bad("Termostato exige BME, KNX e publicacao de temperatura");
+  if (d.containsKey("inputs")) {
+    if (!d["inputs"].is<JsonArray>() || d["inputs"].size() != 4)
+      return bad("Configura exatamente quatro entradas");
+    for (unsigned i = 0; i < 4; ++i) {
+      JsonObject o = d["inputs"][i]; auto &in = c.input[i];
+      if (!o["name"].is<const char *>() || !o["enabled"].is<bool>() ||
+          !o["gpio"].is<int>() || !o["activeLow"].is<bool>() || !o["group"].is<const char *>())
+        return bad("Entrada local invalida");
+      in.name = o["name"].as<String>(); in.enabled = o["enabled"];
+      in.gpio = o["gpio"]; in.activeLow = o["activeLow"];
+      in.group = o["group"].as<String>();
+      if (in.name.isEmpty() || in.name.length() > 32 ||
+          (in.gpio != -1 && !inputPin(in.gpio))) return bad("Nome ou GPIO de entrada invalido");
+      uint16_t g = 0;
+      if (in.group.length() && !sensor::parseGroup(in.group.c_str(), g))
+        return bad("Grupo KNX de entrada invalido");
+      if (!in.enabled) continue;
+      if (!inputPin(in.gpio)) return bad("Entrada ativa exige GPIO");
+      if ((c.bmeEnabled && (in.gpio == c.sda || in.gpio == c.scl)) ||
+          (c.oledEnabled && (in.gpio == osda || in.gpio == oscl || in.gpio == c.oledReset)) ||
+          in.gpio == c.oneWire) return bad("GPIO de entrada em conflito com sensor ou OLED");
+      for (unsigned j = 0; j < 4; ++j)
+        if (c.relay[j].enabled && in.gpio == c.relay[j].gpio)
+          return bad("GPIO de entrada em conflito com rele");
+      for (unsigned j = 0; j < i; ++j)
+        if (c.input[j].enabled && in.gpio == c.input[j].gpio)
+          return bad("GPIO de entrada repetido");
+      if (g) {
+        for (unsigned j = 0; j < 5; ++j)
+          if (c.channel[j].enabled && g == groups[j]) return bad("Grupo de entrada em conflito com sensor");
+        for (unsigned j = 0; j < 3; ++j)
+          if (c.thermostatMode && g == reserved[j]) return bad("Grupo de entrada em conflito com termostato");
+        for (unsigned j = 0; j < 4; ++j) {
+          uint16_t other;
+          if (c.relay[j].enabled && ((sensor::parseGroup(c.relay[j].commandGroup.c_str(), other) && other == g) ||
+              (sensor::parseGroup(c.relay[j].feedbackGroup.c_str(), other) && other == g)))
+            return bad("Grupo de entrada em conflito com rele");
+        }
+        for (unsigned j = 0; j < i; ++j) {
+          uint16_t other;
+          if (c.input[j].enabled && sensor::parseGroup(c.input[j].group.c_str(), other) && other == g)
+            return bad("Grupo de entrada repetido");
+        }
       }
     }
   }

@@ -15,9 +15,18 @@ struct RelayConfig {
   bool enabled = false, activeLow = true;
   int gpio = -1;
 };
+struct InputConfig {
+  String name, group;
+  bool enabled = false, activeLow = true;
+  int gpio = -1;
+};
 struct Config {
   String name = "iot-sensor", ssid, wifiPassword, adminPassword;
   bool knxEnabled = false, bmeEnabled = false, oledEnabled = false, showDiagnostics = true;
+  bool thermostatMode = false, thermostatOn = false;
+  String thermostatName = "Termostato", thermostatSetpointGroup,
+         thermostatDemandGroup, thermostatFeedbackGroup;
+  float thermostatSetpoint = 21.0f, thermostatMargin = 0.3f;
   String gateway;
   uint16_t port = 3671, rate = 5;
   int sda = -1, scl = -1, oledSda = -1, oledScl = -1;
@@ -27,8 +36,10 @@ struct Config {
   String rom[2];
   ChannelConfig channel[5];
   RelayConfig relay[4];
+  InputConfig input[4];
   Config() {
     for (int i = 0; i < 4; ++i) relay[i].name = "Rele " + String(i + 1);
+    for (int i = 0; i < 4; ++i) input[i].name = "Entrada " + String(i + 1);
     const char *names[] = {"Ambiente", "Humidade", "Pressao", "Sonda 1", "Sonda 2"};
     for (int i = 0; i < 5; ++i) {
       channel[i].name = names[i];

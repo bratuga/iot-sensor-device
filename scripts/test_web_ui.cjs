@@ -2,7 +2,7 @@ const {JSDOM}=require('jsdom');const fs=require('fs');const assert=require('asse
 let html=fs.readFileSync(require('path').join(__dirname,'../include/WebUi.h'),'utf8').split('R"HTML(')[1].split(')HTML"')[0];html=html.replace(/\(async\(\)=>\{try\{await refresh\(\);[\s\S]*?<\/script>/,'</script>');const dom=new JSDOM(html,{runScripts:'dangerously',url:'http://sensor.local'});const w=dom.window,d=w.document;
 w.eval(`heatingPlan={outputsEnabled:false,armed:false,fault:false,pumpState:'desconhecido',zones:[],circuits:Array.from({length:8},(_,i)=>({zone:-1,position:i,state:'desconhecido'})),control:{enabled:false,openMs:120000,maxAgeMs:300000,rooms:[],actuators:Array.from({length:9},()=>({command:'',feedback:''}))}};renderHeating();`);
 d.getElementById('addRoom').click();d.getElementById('addRoom').click();
-function click(id,text){[...d.querySelectorAll('#'+id+' button')].find(b=>b.textContent===text).click();}
+function click(id,text){[...d.querySelectorAll('#'+id+' button')].find(b=>b.textContent===text||b.textContent.startsWith(text+' ')).click();}
 click('hz0','Associar circuito');click('hz0','Associar circuito');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),2);
 d.getElementById('zone0').value='Sala';w.eval('captureHeating();heatingPlan.pumpState="ligado";renderHeatStatus();');assert.equal(d.getElementById('zone0').value,'Sala');assert.equal(d.getElementById('pumpState').dataset.state,'running');
 click('hz1','Associar circuito');click('hz0','Remover divisão');assert.equal(w.eval('heatingDraft.zones.length'),1);assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),1);assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===-1).length'),7);
@@ -15,7 +15,7 @@ w.eval('heatingPlan.armed=true;heatingPlan.control.rooms[0].mode=2;renderHeatSta
 w.eval('heatingPlan.control.rooms[0].mode=1;renderHeatStatus();');assert.equal(d.querySelector('#rooms .power').getAttribute('aria-pressed'),'false');console.log('PASS thermostat power states and accessible control');
 assert(!d.getElementById('rooms').textContent.includes('Circuito'));console.log('PASS room tiles omit circuit assignments');
 w.eval('heatingPlan.controlMessage="A aguardar feedback OFF da bomba em 3/5/10";Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,temperatureFresh:false,value:21.5,setpointKnown:true,target:23});renderHeatStatus();');
-assert(d.getElementById('rooms').textContent.includes('21,5'));assert(d.querySelector('.current').title.includes('Última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('23,0 °C'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
+assert(d.getElementById('rooms').textContent.includes('21,5'));assert(d.querySelector('#rooms .current').title.includes('Última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('23,0 °C'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
 w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('23,0 °C'));console.log('PASS independent setpoint/temperature and stale cache tooltip');
 
 d.getElementById('hz0external').checked=true;d.getElementById('hz0bmeFallback').checked=true;d.getElementById('hz0margin').value='0.4';w.eval('captureHeating();renderHeating(false)');assert(d.getElementById('hz0external').checked);assert(d.getElementById('hz0bmeFallback').checked);assert.equal(d.getElementById('hz0margin').value,'0.4');console.log('PASS room control and BME fallback survive redraw');
@@ -32,14 +32,14 @@ console.log('PASS unused circuit, specific fault separate from pump, arm only af
 
 // Commands still come from the real heating state, and setpoint buttons use the dedicated API.
 w.eval('heatingPlan.armed=true;Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,value:20,setpointKnown:true,target:25,setpoint:"3/4/2",demand:true,mode:2});renderHeatStatus();');
-assert.equal(d.querySelector('.current').textContent,'20,0°C');
-assert.equal(d.querySelector('.setpoint-value output').textContent,'25,0 °C');
-assert.equal(d.querySelector('.heat-state').textContent,'Pedido ativo');
-assert.equal(d.querySelector('.thermostat').dataset.demand,'true');
-assert(d.querySelector('.power').getAttribute('aria-label').startsWith('Desligar '));
+assert.equal(d.querySelector('#rooms .current').textContent,'20,0°C');
+assert.equal(d.querySelector('#rooms .setpoint-value output').textContent,'25,0 °C');
+assert.equal(d.querySelector('#rooms .heat-state').textContent,'Pedido ativo');
+assert.equal(d.querySelector('#rooms .thermostat').dataset.demand,'true');
+assert(d.querySelector('#rooms .power').getAttribute('aria-label').startsWith('Desligar '));
 w.eval('var lastRoomAction;heatAction=(...args)=>{lastRoomAction=args;};');
 d.querySelector('.mode').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,0]));
-d.querySelector('.power').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,1]));
+d.querySelector('#rooms .power').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,1]));
 w.eval('heatingPlan.control.rooms[0].mode=0;renderHeatStatus();');
 d.querySelector('.mode').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,2]));
 w.eval('heatingPlan.control.rooms[0].mode=2;renderHeatStatus();');
@@ -62,4 +62,20 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  status.relays[1].enabled=true;status.showDiagnostics=true;await w.eval('refresh()');
  assert(!d.getElementById('relaySection').hidden);assert(!d.getElementById('diagnosticSection').hidden);assert.equal(d.querySelectorAll('#outputs .card').length,1);
  console.log('PASS only configured relays visible; diagnostic visibility follows saved option');
+ w.eval(`cfg={name:'Teste',ssid:'',wifiPassword:'',showDiagnostics:true,bmeEnabled:true,oledEnabled:false,sda:23,scl:22,bmeAddress:119,oneWire:-1,oledSda:4,oledScl:15,oledReset:16,oledAddress:60,oledHeight:64,sampleMs:5000,knxEnabled:true,gateway:'10.10.5.1',port:3671,rate:5,thermostatMode:false,thermostatName:'Quarto',thermostatMargin:0.3,thermostatSetpointGroup:'3/4/2',thermostatDemandGroup:'3/4/3',thermostatFeedbackGroup:'3/5/3',rom:['',''],channels:Array.from({length:5},(_,i)=>({name:'Canal '+i,enabled:i===0,group:'3/1/'+(i+1),offset:0,periodic:true,periodMs:60000,onChange:true,delta:0.2,minGapMs:5000})),relays:Array.from({length:4},(_,i)=>({name:'Relé '+i,enabled:i===0,gpio:25+i,activeLow:true,commandGroup:'3/4/'+i,feedbackGroup:'3/5/'+i})),inputs:Array.from({length:4},(_,i)=>({name:'Entrada '+i,enabled:i===0,gpio:32+i,activeLow:true,group:'3/6/'+i}))};render();renderRelays();renderInputs();visibility();`);
+ assert(!d.getElementById('ch0').parentElement.hidden);assert(d.getElementById('ch1').parentElement.hidden);
+ assert(!d.getElementById('relayK0').hidden);assert(d.getElementById('relayK1').hidden);
+ assert(!d.getElementById('inputK0').hidden);assert(d.getElementById('inputK1').hidden);
+ w.eval('selectTab("hardware")');assert(!d.getElementById('tab-hardware').hidden);assert(d.getElementById('tab-features').hidden);
+ d.getElementById('thermostatSetpointGroup').value='3/4/42';d.getElementById('profileMode').value='thermostat';w.eval('visibility()');
+ assert(d.getElementById('collectorSettings').hidden);assert(!d.getElementById('thermostatSettings').hidden);
+ assert(d.getElementById('heatKnxSection').hidden);assert(!d.getElementById('thermostatKnxSection').hidden);
+ assert.equal(d.getElementById('thermostatSetpointGroup').value,'3/4/42');
+ console.log('PASS settings tabs, selected KNX fields, mode switch and draft preservation');
+ status.thermostatMode=true;status.thermostat={name:'Quarto',on:true,setpoint:22,temperatureValid:true,temperature:20.5,demand:true,feedbackKnown:true,feedback:true,knxConnected:true,pending:false,failed:false};
+ await w.eval('dashboard();refresh()');
+ assert(d.getElementById('dashboardArea').hidden);assert(!d.getElementById('thermostatView').hidden);
+ assert.equal(d.getElementById('thermoName').textContent,'Quarto');assert.equal(d.getElementById('thermoTarget').textContent,'22,0 °C');assert.equal(d.getElementById('thermoTile').dataset.demand,'true');
+ assert.equal(d.getElementById('thermoPower').getAttribute('aria-pressed'),'true');
+ console.log('PASS independent BME thermostat dashboard hides collector and shows confirmed KNX state');
 })().catch(e=>{console.error(e);process.exitCode=1;});

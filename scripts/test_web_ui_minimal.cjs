@@ -17,7 +17,7 @@ class Element{
   getAttribute(key){return this.attributes[key];}
   querySelector(selector){const cls=selector.replace('.','');for(const child of this.children){if(child.className===cls||child.className?.split(' ').includes(cls))return child;const found=child.querySelector(cls);if(found)return found;}return null;}
 }
-const elements=new Map();const document={getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},createElement(tag){return new Element(tag);},createTextNode(text){const e=new Element('#text');e.textContent=text;return e;}};
+const elements=new Map();const document={getElementById(id){if(!elements.has(id))elements.set(id,new Element());return elements.get(id);},createElement(tag){return new Element(tag);},createTextNode(text){const e=new Element('#text');e.textContent=text;return e;},querySelectorAll(){return [];}};
 const calls=[];let layout={outputsEnabled:true,armed:true,canArm:true,pumpState:'desligado',controlMessage:'Controlo ativo.',zones:['Sala'],circuits:Array.from({length:8},(_,i)=>({position:i,zone:i===0?0:-1,state:'desligado'})),control:{rooms:[{setpoint:'3/4/2',temperatureKnown:true,temperatureFresh:true,value:20,setpointKnown:true,target:23,mode:0,enabled:true,demand:true}]}};
 let session='';const fetch=async(path,options={})=>{calls.push({path,options});let body={};let status=200;
  if(path==='/api/heating/setpoint'){const {index,value}=JSON.parse(options.body);assert.equal(index,0);assert.equal(options.headers['X-CSRF-Token'],'test-csrf');layout.control.rooms[index].target=value;layout.control.rooms[index].setpointPending=true;body={queued:true,value};}
@@ -42,10 +42,16 @@ vm.runInContext(js,context);
  assert(rooms.children[0].children[2].textContent.includes('24,0 °C'));assert(rooms.children[0].children[2].textContent.includes('5 s'));await vm.runInContext('refreshHeat()',context);assert(rooms.children[0].children[2].textContent.includes('24,0 °C'));
  const delayed=[...timers.values()][0].fn;timers.clear();await delayed();
  assert.equal(calls.filter(c=>c.path==='/api/heating/setpoint').length,1);assert.equal(calls.find(c=>c.path==='/api/heating/setpoint').options.body,'{"index":0,"value":24}');assert.equal(layout.control.rooms[0].target,24);assert(rooms.children[0].children[2].textContent.includes('A confirmar envio KNX'));
- vm.runInContext('render=()=>{};renderRelays=()=>{};renderHeating=()=>{};',context);
+ vm.runInContext('render=()=>{};renderRelays=()=>{};renderInputs=()=>{};renderHeating=()=>{};visibility=()=>{};selectTab=()=>{};',context);
  await document.getElementById('viewSettings').onclick();assert.equal(document.getElementById('privateSettings').hidden,true);assert.equal(document.getElementById('loginPanel').hidden,false);
  document.getElementById('loginUser').value='admin';document.getElementById('loginPassword').value='secret';await document.getElementById('loginForm').onsubmit({preventDefault(){}});assert.equal(document.getElementById('privateSettings').hidden,false);assert.equal(document.getElementById('loginPanel').hidden,true);
  assert(calls.filter(c=>c.path==='/api/config').every(c=>c.options.headers['X-Admin-Session']==='session-token'||!c.options.headers['X-Admin-Session']));
+ vm.runInContext('latestThermo={name:"Quarto",on:true,setpoint:21,temperature:20,demand:true,temperatureValid:true,pending:false,failed:false,feedbackKnown:false};currentThermostatMode=true;renderThermostat(latestThermo);csrf="test-csrf";changeThermo(0.5);changeThermo(0.5);',context);
+ assert.equal(calls.filter(c=>c.path==='/api/thermostat').length,0);assert.equal([...timers.values()][0].ms,5000);assert.equal(document.getElementById('thermoTarget').textContent,'22,0 °C');
+ const thermoTimer=[...timers.values()][0].fn;timers.clear();await thermoTimer();
+ assert.equal(calls.filter(c=>c.path==='/api/thermostat').length,1);assert.equal(JSON.parse(calls.find(c=>c.path==='/api/thermostat').options.body).setpoint,22);
+ assert(html.includes('data-tab="features"')&&html.includes('data-tab="knx"')&&html.includes('data-tab="hardware"')&&html.includes('data-tab="config"'));
+ assert(html.includes('id="knxConsole"')&&html.includes('id="restoreFile"')&&html.includes('id="thermostatView"'));
  assert(!html.includes('id="viewDashboard"'));assert(html.includes('id="deviceName"'));assert(html.includes('id="localClock"')===false);assert(html.includes('id="connection"'));
- console.log('PASS: public dashboard, coalesced 5-second KNX setpoint, collector state, integrated admin login');
+ console.log('PASS: public dashboard, both 5-second setpoint debounces, tabs, collector state, integrated admin login');
 })().catch(e=>{console.error(e);process.exitCode=1;});

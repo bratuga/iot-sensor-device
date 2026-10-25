@@ -4,6 +4,7 @@
 #include "HeatingSnapshot.h"
 #include "HeatingReadPlan.h"
 #include "Bme280Direct.h"
+#include "ThermostatCore.h"
 #include "WebUi.h"
 // Optional private build settings. include/secrets.h is excluded by .gitignore.
 // Remove it and rebuild to stop applying test overrides.
@@ -89,7 +90,8 @@ bool heatingSafe();
 void heatingTelegram(const knxip::Telegram &t);
 void heatingLoop(uint32_t now);
 unsigned romCount = 0;
-String logs[12];
+constexpr unsigned MaxLogs=48;
+String logs[MaxLogs];
 unsigned logCount = 0, logNext = 0;
 struct Reading {
   float value = NAN;
@@ -99,6 +101,13 @@ struct Reading {
 };
 Reading readings[5];
 device::RelayState relays[4];
+struct LocalInputState { bool raw=false, active=false, dirty=false; uint32_t changedAt=0; } inputs[4];
+bool thermoDemand=false, thermoSentDemand=false, thermoReported=false, thermoFeedbackKnown=false;
+bool thermoDirty=true, thermoSetpointDirty=true, thermoPending=false, thermoFailed=false;
+uint32_t thermoCommandAt=0, thermoSendAt=0, thermoSetpointAt=0;
+constexpr uint32_t ThermoDemandToken=0x700001u, ThermoSetpointToken=0x700002u;
+void thermostatLoop(uint32_t now);
+void inputLoop(uint32_t now);
 void setRelay(unsigned i, bool on);
 uint32_t ipNumber(IPAddress ip) {
   return (uint32_t(ip[0]) << 24) | (uint32_t(ip[1]) << 16) | (uint32_t(ip[2]) << 8) | ip[3];
@@ -114,8 +123,8 @@ String individualText(uint16_t a) {
 }
 void logTelegram(const String &s) {
   logs[logNext] = s;
-  logNext = (logNext + 1) % 12;
-  if (logCount < 12)
+  logNext = (logNext + 1) % MaxLogs;
+  if (logCount < MaxLogs)
     ++logCount;
   Serial.println(s);
 }
@@ -137,6 +146,15 @@ class Events : public knxip::Listener {
   void onTelegram(const knxip::Telegram &) override;
   void onEvent(knxip::Event e, uint16_t detail) override;
   void onSent(uint32_t token, bool ok) override {
+    if (token == ThermoDemandToken) {
+      thermoPending = ok && !(thermoFeedbackKnown && thermoReported==thermoSentDemand);
+      if (ok && !thermoPending) thermoDirty = thermoReported!=thermoDemand;
+      thermoFailed = !ok;
+      if (!ok) thermoDirty = true;
+    }
+    if (token == ThermoSetpointToken) thermoSetpointDirty = !ok;
+    if (token >= 0x710000u && token < 0x710004u && !ok)
+      inputs[token - 0x710000u].dirty = true;
     for(unsigned i=0;i<roomCount;++i)if(token&&token==setpointPending[i]){
       setpointPending[i]=0;setpointFailed[i]=!ok;
     }
@@ -167,6 +185,9 @@ const char *stateName() {
 void Events::onEvent(knxip::Event e, uint16_t detail) {
   lastEvent = "Evento KNX " + String(int(e)) + " / " + String(detail);
   if (e == knxip::Event::Connected) {
+    thermoDirty = thermoSetpointDirty = true;
+    thermoPending = thermoFeedbackKnown = false;
+    for (auto &in : inputs) in.dirty = true;
     for(auto &pending:heatFeedbackRead)pending=false;
     heatReadSweep.start(roomCount);heatPoll=millis()-500;
     for (auto &r : relays) r.reconnect();
@@ -188,8 +209,42 @@ void Events::onTelegram(const knxip::Telegram &t) {
     s += h;
   }
   logTelegram(s);
-  heatingTelegram(t);
+  if (!config.thermostatMode) heatingTelegram(t);
   if (updating || restarting) return;
+  if (config.thermostatMode) {
+    uint16_t setpoint=0, demand=0, feedback=0;
+    sensor::parseGroup(config.thermostatSetpointGroup.c_str(),setpoint);
+    sensor::parseGroup(config.thermostatDemandGroup.c_str(),demand);
+    sensor::parseGroup(config.thermostatFeedbackGroup.c_str(),feedback);
+    bool value;
+    if (t.group==feedback && t.operation!=knxip::Operation::Read && t.asBool(value)) {
+      thermoReported=value;thermoFeedbackKnown=true;
+      if(thermoPending && value==thermoSentDemand){thermoPending=false;thermoFailed=false;}
+      if(!thermoPending){thermoDirty=value!=thermoDemand;thermoFailed=false;}
+    }
+    if (t.operation==knxip::Operation::Read && t.group==setpoint) {
+      uint8_t bytes[2];
+      if (sensor::encodeDpt9(config.thermostatSetpoint,bytes)) tunnel.respond(setpoint,bytes,2,false);
+    }
+    if (t.operation==knxip::Operation::Read && t.group==feedback && thermoFeedbackKnown) {
+      uint8_t current=thermoReported?1:0;tunnel.respond(feedback,&current,1,true);
+    }
+    if (t.operation==knxip::Operation::Write && t.group==setpoint && t.size==2) {
+      uint16_t raw=(uint16_t(t.data[0])<<8)|t.data[1];
+      int16_t mantissa=int16_t(raw&0x7ff);if(mantissa&0x400)mantissa|=~int16_t(0x7ff);
+      float target=0.01f*mantissa*(1u<<((raw>>11)&15));
+      if(raw!=0x7fff&&target>=5&&target<=30&&std::isfinite(target)) {
+        thermoSetpointDirty=false;
+        if(std::fabs(config.thermostatSetpoint-target)>0.001f){
+          config.thermostatSetpoint=target;
+          if(!saveConfig(config)) Serial.println("Termostato: falha ao guardar setpoint KNX");
+        }
+      }
+    }
+    if (t.operation==knxip::Operation::Read && t.group==demand) {
+      uint8_t value=thermoDemand?1:0;tunnel.respond(demand,&value,1,true);
+    }
+  }
   for (unsigned i = 0; i < 4; ++i) {
     const auto &r = config.relay[i];
     if (!r.enabled) continue;
@@ -222,6 +277,52 @@ void initRelays() {
     // Preload OFF before enabling output; hardware pull resistors are still required at reset.
     digitalWrite(config.relay[i].gpio, device::relayLevel(false, config.relay[i].activeLow) ? HIGH : LOW);
     pinMode(config.relay[i].gpio, OUTPUT);
+  }
+}
+void initInputs() {
+  for (unsigned i=0;i<4;++i) {
+    const auto &c=config.input[i];if(!c.enabled)continue;
+    // GPIO34/35/36/39 have no internal pulls; use an external resistor.
+    pinMode(c.gpio,c.gpio>=34?INPUT:(c.activeLow?INPUT_PULLUP:INPUT_PULLDOWN));
+    inputs[i].raw=inputs[i].active=(digitalRead(c.gpio)==(c.activeLow?LOW:HIGH));
+    inputs[i].changedAt=millis();inputs[i].dirty=true;
+  }
+}
+void inputLoop(uint32_t now) {
+  for (unsigned i=0;i<4;++i) {
+    const auto &c=config.input[i];if(!c.enabled)continue;
+    auto &v=inputs[i];bool raw=digitalRead(c.gpio)==(c.activeLow?LOW:HIGH);
+    if(raw!=v.raw){v.raw=raw;v.changedAt=now;}
+    if(raw!=v.active&&sensor::elapsed(now,v.changedAt,50)){v.active=raw;v.dirty=true;}
+    uint16_t group;
+    if(v.dirty&&tunnel.state()==knxip::State::Connected&&
+       sensor::parseGroup(c.group.c_str(),group)&&
+       tunnel.writeBool(group,v.active,0x710000u+i)==knxip::Result::Queued)v.dirty=false;
+  }
+}
+void thermostatLoop(uint32_t now) {
+  if(!config.thermostatMode)return;
+  bool valid=config.bmeEnabled&&fresh(0,now);
+  bool desired=thermostat::demand(config.thermostatOn,valid,thermoDemand,
+    readings[0].value,config.thermostatSetpoint,config.thermostatMargin);
+  if(desired!=thermoDemand){thermoDemand=desired;thermoDirty=true;thermoFailed=false;}
+  if(tunnel.state()!=knxip::State::Connected)return;
+  if(thermoSetpointDirty&&sensor::elapsed(now,thermoSetpointAt,5000)){
+    uint16_t group;uint8_t bytes[2];
+    if(sensor::parseGroup(config.thermostatSetpointGroup.c_str(),group)&&
+       sensor::encodeDpt9(config.thermostatSetpoint,bytes)&&
+       tunnel.write(group,bytes,2,false,ThermoSetpointToken)==knxip::Result::Queued){
+      thermoSetpointDirty=false;thermoSetpointAt=now;
+    }
+  }
+  if(thermoPending&&sensor::elapsed(now,thermoCommandAt,30000)){
+    thermoPending=false;thermoFailed=true;
+  }
+  if(!thermoDirty||thermoPending||thermoFailed||!sensor::elapsed(now,thermoSendAt,1000))return;
+  uint16_t group;
+  if(sensor::parseGroup(config.thermostatDemandGroup.c_str(),group)&&
+     tunnel.writeBool(group,thermoDemand,ThermoDemandToken)==knxip::Result::Queued){
+    thermoSentDemand=thermoDemand;thermoPending=true;thermoCommandAt=thermoSendAt=now;
   }
 }
 void publishRelays(uint32_t now) {
@@ -525,7 +626,7 @@ void display(uint32_t now) {
     else
       oled->println("--");
   } else if (logCount) {
-    oled->println(logs[(logNext + 11) % 12]);
+    oled->println(logs[(logNext + MaxLogs - 1) % MaxLogs]);
   } else
     oled->println(WiFi.localIP());
   oled->display();
@@ -570,10 +671,15 @@ bool publicMutation() {
 }
 bool mutation(){return auth()&&publicMutation();}
 bool heatingSafe() {
+ if (config.thermostatMode) return true; // Collector was stopped before this mode was saved.
  if (!hc.enabled) return true;
  if (heat.armed || !heat.confirmed(8,false,millis())) return false;
  for (unsigned i=0;i<8;++i) if(heatingLayout.zone[i]>=0&&hc.command[i]&&!heat.confirmed(i,false,millis())) return false;
  return true;
+}
+bool thermostatSafe() {
+ return !config.thermostatMode || (!config.thermostatOn && !thermoDemand &&
+         !thermoPending && (!thermoFeedbackKnown || !thermoReported));
 }
 bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
  if (!d.containsKey("control")) return true; // migrate mapping-only configuration
@@ -590,6 +696,7 @@ bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
    for(unsigned i=0;i<count;++i)if(used[i]==g)return false;
    for(const auto&r:config.relay){uint16_t x;if(r.enabled&&((sensor::parseGroup(r.commandGroup.c_str(),x)&&x==g)||(sensor::parseGroup(r.feedbackGroup.c_str(),x)&&x==g)))return false;}
    for(const auto&r:config.channel){uint16_t x;if(r.enabled&&sensor::parseGroup(r.group.c_str(),x)&&x==g)return false;}
+   for(const auto&in:config.input){uint16_t x;if(in.enabled&&sensor::parseGroup(in.group.c_str(),x)&&x==g)return false;}
    used[count++]=g;return true;
  };
  for(unsigned i=0;i<9;++i)if(!group(c["actuators"][i]["command"],n.command[i])||!group(c["actuators"][i]["feedback"],n.feedback[i]))return false;
@@ -701,6 +808,7 @@ void heatingTelegram(const knxip::Telegram &t) {
 }
 void heatingLoop(uint32_t now) {
  saveHeatingValues();
+ if(config.thermostatMode)return;
  if(!hc.enabled)return;
  bool link=tunnel.state()==knxip::State::Connected;
  for(unsigned i=0;i<roomCount;++i){
@@ -750,8 +858,8 @@ void heatingLoop(uint32_t now) {
 
 }
 void heatingJson(JsonDocument &d, bool includeConfig=true) {
-  d["outputsEnabled"] = hc.enabled;
-  d["canArm"]=hc.enabled&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
+  d["outputsEnabled"] = hc.enabled&&!config.thermostatMode;
+  d["canArm"]=hc.enabled&&!config.thermostatMode&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
   d["armed"]=heat.armed;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
   JsonObject control;
   if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;
@@ -829,6 +937,7 @@ void setupWeb() {
   });
   web.on("/api/heating/layout", HTTP_POST, [] {
     if (!mutation()) return;
+    if (config.thermostatMode) { error(409,"Muda para o modo de piso radiante antes de configurar o coletor");return; }
     if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
     String body = web.arg("plain");
     if (body.length() > 16384) { error(413, "Mapa demasiado grande"); return; }
@@ -861,7 +970,7 @@ void setupWeb() {
   });
   web.on("/api/heating/control",HTTP_POST,[]{
     if(!publicMutation())return;
-    if(!hc.enabled||updating||restarting){error(409,"Aquecimento indisponivel");return;}
+    if(config.thermostatMode||!hc.enabled||updating||restarting){error(409,"Aquecimento indisponivel neste modo");return;}
     StaticJsonDocument<256>d;
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
     String action=d["action"]|"";
@@ -875,7 +984,7 @@ void setupWeb() {
   });
   web.on("/api/heating/setpoint",HTTP_POST,[]{
     if(!publicMutation())return;
-    if(!hc.enabled||updating||restarting||tunnel.state()!=knxip::State::Connected){error(409,"Ligacao KNX indisponivel");return;}
+    if(config.thermostatMode||!hc.enabled||updating||restarting||tunnel.state()!=knxip::State::Connected){error(409,"Ligacao KNX indisponivel neste modo");return;}
     StaticJsonDocument<256> d;
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["index"].is<unsigned>()||(!d["value"].is<float>()&&!d["value"].is<int>())){
       error(400,"Indica divisao e temperatura");return;
@@ -947,14 +1056,19 @@ void setupWeb() {
       error(400, why);
       return;
     }
+    for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda confirmacao do setpoint KNX");return;}
+    if(!next.thermostatMode && !thermostatSafe()){
+      error(409,"Desliga o termostato e aguarda feedback OFF antes de mudar de modo");return;
+    }
     if (!heatingSafe()) { error(409,"Para o aquecimento antes de reiniciar"); return; }
-    if(hc.enabled){
+    if(hc.enabled&&!next.thermostatMode){
       uint16_t groups[82];unsigned n=0;
       for(unsigned i=0;i<9;++i){groups[n++]=hc.command[i];groups[n++]=hc.feedback[i];}
       for(unsigned i=0;i<roomCount;++i){groups[n++]=hc.enable[i];groups[n++]=hc.status[i];groups[n++]=hc.temperature[i];groups[n++]=hc.setpoint[i];}
       for(unsigned i=0;i<n;++i){uint16_t g;
         for(const auto&r:next.relay)if(r.enabled&&((sensor::parseGroup(r.commandGroup.c_str(),g)&&g==groups[i])||(sensor::parseGroup(r.feedbackGroup.c_str(),g)&&g==groups[i]))){error(400,"Grupo reservado pelo aquecimento");return;}
         for(const auto&r:next.channel)if(r.enabled&&sensor::parseGroup(r.group.c_str(),g)&&g==groups[i]){error(400,"Grupo reservado pelo aquecimento");return;}
+        for(const auto&in:next.input)if(in.enabled&&sensor::parseGroup(in.group.c_str(),g)&&g==groups[i]){error(400,"Grupo de input reservado pelo aquecimento");return;}
       }
     }
     if (!saveConfig(next)) {
@@ -962,6 +1076,93 @@ void setupWeb() {
       return;
     }
     web.send(200, "application/json", "{\"saved\":true,\"reboot\":true}");
+    scheduleRestart();
+  });
+  web.on("/api/thermostat",HTTP_POST,[]{
+    if(!publicMutation())return;
+    if(!config.thermostatMode||updating||restarting){error(409,"Termostato indisponivel");return;}
+    StaticJsonDocument<256> d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
+    if(d.containsKey("on")){
+      if(!d["on"].is<bool>()){error(400,"Indica on verdadeiro ou falso");return;}
+      bool previous=config.thermostatOn;config.thermostatOn=d["on"];
+      if(!saveConfig(config)){config.thermostatOn=previous;error(500,"Falha ao guardar");return;}
+      thermoDirty=true;thermoFailed=false;
+    } else if(d.containsKey("setpoint")) {
+      if((!d["setpoint"].is<float>()&&!d["setpoint"].is<int>())||
+         tunnel.state()!=knxip::State::Connected){error(409,"Setpoint ou KNX indisponivel");return;}
+      float value=d["setpoint"];
+      if(!std::isfinite(value)||value<5||value>30||std::fabs(value*2-std::round(value*2))>0.001f){error(400,"Setpoint: 5 a 30 °C, passos de 0,5");return;}
+      uint16_t group;uint8_t bytes[2];
+      if(!sensor::parseGroup(config.thermostatSetpointGroup.c_str(),group)||
+         !sensor::encodeDpt9(value,bytes)||
+         tunnel.write(group,bytes,2,false,ThermoSetpointToken)!=knxip::Result::Queued){error(503,"Fila KNX indisponivel");return;}
+      float previous=config.thermostatSetpoint;config.thermostatSetpoint=value;
+      if(!saveConfig(config)){config.thermostatSetpoint=previous;error(500,"KNX em fila mas falhou guardar na NVS");return;}
+      thermoSetpointDirty=false;
+      thermoSetpointAt=millis();
+    }else{error(400,"Indica on ou setpoint");return;}
+    web.send(200,"application/json","{\"ok\":true}");
+  });
+  web.on("/api/knx/command",HTTP_POST,[]{
+    if(!mutation())return;
+    if(updating||restarting||tunnel.state()!=knxip::State::Connected){error(409,"KNX indisponivel");return;}
+    StaticJsonDocument<256> d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||
+       !d["group"].is<const char*>()||!d["operation"].is<const char*>()){
+      error(400,"Comando invalido");return;}
+    uint16_t group;const String op=d["operation"].as<String>();
+    if(!sensor::parseGroup(d["group"],group)){error(400,"Grupo KNX invalido");return;}
+    knxip::Result result=knxip::Result::InvalidArgument;
+    if(op=="read")result=tunnel.read(group);
+    else if(op=="switch"&&d["value"].is<bool>())result=tunnel.writeBool(group,d["value"].as<bool>());
+    else if(op=="float"&&(d["value"].is<float>()||d["value"].is<int>())){
+      uint8_t bytes[2];if(sensor::encodeDpt9(d["value"].as<float>(),bytes))result=tunnel.write(group,bytes,2,false);
+    }
+    if(result!=knxip::Result::Queued){error(503,"Comando rejeitado ou fila KNX ocupada");return;}
+    web.send(200,"application/json","{\"queued\":true}");
+  });
+  web.on("/api/backup",HTTP_GET,[]{
+    if(!auth())return;
+    DynamicJsonDocument d(32768),c(12288),h(16384);
+    configJson(config,c,false);heatingJson(h);
+    d["format"]="iot-sensor-backup-v1";d["config"].set(c.as<JsonObject>());
+    d["heating"].set(h.as<JsonObject>());
+    if(d.overflowed()){error(500,"Backup demasiado grande");return;}
+    sendJson(d);
+  });
+  web.on("/api/backup",HTTP_POST,[]{
+    if(!mutation())return;
+    if(updating||restarting||!heatingSafe()){error(409,"Para o aquecimento antes de restaurar");return;}
+    for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda a confirmacao KNX");return;}
+    String body=web.arg("plain");
+    if(body.length()>30000){error(413,"Backup demasiado grande");return;}
+    DynamicJsonDocument d(32768),cd(12288),hd(16384);
+    if(deserializeJson(d,body)||d["format"]!="iot-sensor-backup-v1"||
+       !d["config"].is<JsonObject>()||!d["heating"].is<JsonObject>()){
+      error(400,"Formato de backup invalido");return;}
+    cd.set(d["config"].as<JsonObject>());cd.remove("wifiPassword");cd.remove("adminPassword");
+    hd.set(d["heating"].as<JsonObject>());
+    Config next;String why;
+    if(!parseConfig(cd,config,next,why)){error(400,why);return;}
+    if(!next.thermostatMode&&!thermostatSafe()){
+      error(409,"Desliga o termostato e aguarda feedback OFF antes de restaurar");return;
+    }
+    heating::RuntimeLayout layout;String names[MaxRooms];HeatConfig heatNext;
+    Config old=config;config=next;
+    bool valid=parseHeating(hd,layout,names)&&parseHeatConfig(hd,heatNext);
+    config=old;
+    if(!valid){error(400,"Mapa KNX do backup invalido ou em conflito");return;}
+    Preferences p;
+    if(!p.begin("heating",false)){error(500,"NVS indisponivel");return;}
+    String former=p.getString("layout","");String newLayout;serializeJson(hd,newLayout);
+    bool saved=p.putString("layout",newLayout)==newLayout.length();p.end();
+    if(!saved){error(500,"Falha ao guardar mapa");return;}
+    if(!saveConfig(next)){
+      if(p.begin("heating",false)){if(former.isEmpty())p.remove("layout");else p.putString("layout",former);p.end();}
+      error(500,"Falha ao guardar configuracao");return;
+    }
+    web.send(200,"application/json","{\"restored\":true,\"reboot\":true}");
     scheduleRestart();
   });
   web.on("/api/relay", HTTP_POST, [] {
@@ -981,7 +1182,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.2.10-bme-login";
+    d["firmware"] = "0.3.0-settings-thermostat";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -993,6 +1194,16 @@ void setupWeb() {
     d["bme"] = bmeOk;
     d["oled"] = oledOk;
     d["showDiagnostics"] = config.showDiagnostics;
+    d["thermostatMode"] = config.thermostatMode;
+    JsonObject th = d.createNestedObject("thermostat");
+    th["name"] = config.thermostatName;th["on"] = config.thermostatOn;
+    th["setpoint"] = config.thermostatSetpoint;th["margin"] = config.thermostatMargin;
+    th["demand"] = thermoDemand;th["feedbackKnown"] = thermoFeedbackKnown;
+    th["knxConnected"] = tunnel.state()==knxip::State::Connected;
+    th["feedback"] = thermoReported;th["pending"] = thermoPending;
+    th["failed"] = thermoFailed;th["temperatureValid"] = fresh(0,now);
+    if(fresh(0,now))th["temperature"] = readings[0].value;
+    else th["temperature"] = nullptr;
     d["i2cMain"] = bmeI2cScan;
     d["i2cOled"] = oledI2cScan;
     d["lastEvent"] = lastEvent;
@@ -1017,12 +1228,16 @@ void setupWeb() {
       o["on"] = relays[i].on; o["gpio"] = config.relay[i].gpio;
       o["feedbackPending"] = relays[i].dirty || relays[i].pending || relays[i].readRequested;
     }
+    JsonArray digitalInputs = d.createNestedArray("inputs");
+    for(unsigned i=0;i<4;++i){auto item=digitalInputs.createNestedObject();
+      item["name"]=config.input[i].name;item["enabled"]=config.input[i].enabled;
+      item["active"]=inputs[i].active;item["gpio"]=config.input[i].gpio;}
     JsonArray roms = d.createNestedArray("roms");
     for (unsigned i = 0; i < romCount; ++i)
       roms.add(detectedRom[i]);
     JsonArray t = d.createNestedArray("telegrams");
     for (unsigned i = 0; i < logCount; ++i)
-      t.add(logs[(logNext + 12 - logCount + i) % 12]);
+      t.add(logs[(logNext + MaxLogs - logCount + i) % MaxLogs]);
     sendJson(d);
   });
   web.on(
@@ -1160,6 +1375,7 @@ void setup() {
   loadHeating();
   loadHeatingValues();
   initRelays();
+  initInputs();
   csrf = randomSecret();
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(config.name.c_str());
@@ -1172,7 +1388,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.2.10-bme-login. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.0-settings-thermostat. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
@@ -1188,6 +1404,8 @@ void loop() {
   serialCommands();
   if (!updating && !restarting) {
     sampleSensors(millis());
+    inputLoop(millis());
+    thermostatLoop(millis());
     heatingLoop(millis());
     publishRelays(millis());
     publish(millis());

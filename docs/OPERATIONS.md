@@ -22,6 +22,14 @@ São guardadas na NVS; esta versão não ativa flash encryption nem secure boot.
 Não expor a interface HTTP à Internet. Todos os pedidos de alteração exigem
 autenticação e o token CSRF obtido após autenticação.
 
+Em **Configuração → Backup e restauro**, descarregar o JSON conserva sensores,
+GPIO, KNX e o mapa de divisões/circuitos sem SSID password nem password de
+administração. O restauro valida o mapa e os GPIO e reutiliza as passwords
+atuais; antes de restaurar, parar o piso radiante e aguardar o feedback OFF.
+No terminal KNX da mesma página, `READ`, DPT 1.001 e DPT 9.xxx exigem login.
+Os telegramas apresentados são os últimos 48 recebidos em RAM; atualizar a
+página não faz leituras KNX adicionais.
+
 ## Diagnóstico USB (115200 baud, terminar com newline)
 
 | Comando | Efeito |
