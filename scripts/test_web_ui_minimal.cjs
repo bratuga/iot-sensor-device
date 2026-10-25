@@ -30,7 +30,7 @@ const context=vm.createContext({document,fetch,sessionStorage:{getItem:()=>null,
 vm.runInContext(js,context);
 (async()=>{
  vm.runInContext('csrf="test-csrf";heatingPlan=globalLayout;renderHeatStatus();',Object.assign(context,{globalLayout:layout}));
- const rooms=document.getElementById('rooms');assert.equal(rooms.children.length,1);const card=rooms.children[0];assert.equal(card.className,'thermostat');assert.equal(card.dataset.demand,'true');assert.equal(card.children[0].children[0].textContent,'Sala');
+ const rooms=document.getElementById('rooms');assert.equal(rooms.children.length,1);const card=rooms.children[0];assert.equal(card.className,'thermostat');assert.equal(card.dataset.demand,'true');assert.equal(card.children[0].children[1].textContent,'A aguardar');assert.equal(card.children[0].children[0].textContent,'Sala');
  const dial=card.children[1];assert(dial.textContent.includes('20,0'));assert.equal(card.children[2].children[0].children[1].children[1].textContent,'23,0 °C');
  const plus=card.children[2].children[0].children[2];await plus.onclick();assert.equal(calls.find(c=>c.path==='/api/heating/setpoint').options.body,'{"index":0,"value":23.5}');assert.equal(layout.control.rooms[0].target,23.5);assert(rooms.children[0].children[2].textContent.includes('23,5 °C'));assert(rooms.children[0].children[2].textContent.includes('A confirmar envio KNX'));
  vm.runInContext('render=()=>{};renderRelays=()=>{};renderHeating=()=>{};',context);

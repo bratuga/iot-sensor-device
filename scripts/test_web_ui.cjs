@@ -40,6 +40,9 @@ assert(d.querySelector('.power').getAttribute('aria-label').startsWith('Desligar
 w.eval('var lastRoomAction;heatAction=(...args)=>{lastRoomAction=args;};');
 d.querySelector('.mode').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,0]));
 d.querySelector('.power').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,1]));
+w.eval('heatingPlan.control.rooms[0].mode=0;renderHeatStatus();');
+d.querySelector('.mode').click();assert.equal(w.eval('JSON.stringify(lastRoomAction)'),JSON.stringify(['room',0,2]));
+w.eval('heatingPlan.control.rooms[0].mode=2;renderHeatStatus();');
 w.eval('var lastSetpoint;changeSetpoint=(...args)=>{lastSetpoint=args;};');
 d.querySelector('.increase').click();assert.equal(w.eval('JSON.stringify(lastSetpoint)'),JSON.stringify([0,0.5]));
 d.querySelector('.decrease').click();assert.equal(w.eval('JSON.stringify(lastSetpoint)'),JSON.stringify([0,-0.5]));
