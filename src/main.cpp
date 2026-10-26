@@ -1195,7 +1195,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.4-config-storage";
+    d["firmware"] = "0.3.5-sonda-save";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -1401,7 +1401,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.4-config-storage. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.5-sonda-save. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
