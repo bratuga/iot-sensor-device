@@ -1028,7 +1028,7 @@ void setupWeb() {
     bool valid=strcmp(password,config.adminPassword.c_str())==0;
 #ifdef LOCAL_AP_PASSWORD
     // Local test builds historically used this password for access. Keep it
-    // as a compatibility credential without replacing the persisted NVS JSON.
+    // as a compatibility credential without replacing the persisted configuration.
     if(LOCAL_AP_PASSWORD[0])valid=valid||strcmp(password,LOCAL_AP_PASSWORD)==0;
 #endif
     if(strcmp(d["username"].as<const char*>(),"admin")||!valid){
@@ -1111,7 +1111,7 @@ void setupWeb() {
          !sensor::encodeDpt9(value,bytes)||
          tunnel.write(group,bytes,2,false,ThermoSetpointToken)!=knxip::Result::Queued){error(503,"Fila KNX indisponivel");return;}
       float previous=config.thermostatSetpoint;config.thermostatSetpoint=value;
-      if(!saveConfig(config)){config.thermostatSetpoint=previous;error(500,"KNX em fila mas falhou guardar na NVS");return;}
+      if(!saveConfig(config)){config.thermostatSetpoint=previous;error(500,"KNX em fila mas falhou guardar a configuracao");return;}
       thermoSetpointDirty=false;
       thermoSetpointAt=millis();
     }else{error(400,"Indica on ou setpoint");return;}
@@ -1195,7 +1195,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.3-onewire-setup";
+    d["firmware"] = "0.3.4-config-storage";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -1337,7 +1337,7 @@ void serialCommands() {
     } else if (line == "SETUP") {
       openAp();
       Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      Serial.println("Password admin Web (NVS): " + config.adminPassword);
+      Serial.println("Password admin Web (configuracao): " + config.adminPassword);
       Serial.println("Web: utilizador admin; login na pagina Configuracoes");
     } else if (line == "REBOOT") {
       scheduleRestart();
@@ -1368,16 +1368,16 @@ void setup() {
   Serial.begin(115200);
   bootAt = millis();
   bool configured = loadConfig(config);
-  Serial.println(configured ? "NVS: configuracao carregada" :
-                              "NVS: configuracao ausente ou invalida; usar valores iniciais");
+  Serial.println(configured ? "Configuracao persistida carregada" :
+                              "Configuracao ausente ou invalida; usar valores iniciais");
   if (!configured) {
     config.adminPassword = randomSecret();
     if (!saveConfig(config)) {
-      Serial.println("ERRO NVS: configuracao nao persistida");
+      Serial.println("ERRO: configuracao nao persistida");
     }
     Serial.println("Primeiro acesso: admin / " + config.adminPassword);
   }
-  // Private test defaults are only used until credentials have been saved in NVS.
+  // Private test defaults are only used until credentials have been saved in flash.
   // Never overwrite a user's saved Web settings on every boot.
 #ifdef LOCAL_WIFI_SSID
   if (config.ssid.isEmpty()) config.ssid = LOCAL_WIFI_SSID;
@@ -1401,7 +1401,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.3-onewire-setup. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.4-config-storage. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

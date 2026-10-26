@@ -34,7 +34,7 @@ RAM, atualizados pela página sem voltar a ler grupos no barramento. Permite
 GroupValueRead e escrita DPT 1.001/9.xxx apenas a uma sessão de administração.
 Uma resposta «na fila» ainda não confirma a entrega no barramento.
 O backup exporta a configuração e o mapa sem passwords; no restauro conservam-se
-as passwords que estão atualmente na NVS. O restauro exige que o aquecimento
+as passwords que estão atualmente na configuração. O restauro exige que o aquecimento
 esteja parado e reinicia o dispositivo.
 
 ## Interface e configuração
@@ -59,7 +59,7 @@ nem confirmação física da abertura da válvula.
 
 As configurações estão numa vista separada, aberta pelo ícone de definições.
 O login integrado usa `admin` e a palavra-passe de administração conservada no
-JSON de configuração em NVS. Durante estes testes, uma compilação local que inclua
+JSON de configuração na partição SPIFFS. Durante estes testes, uma compilação local que inclua
 `LOCAL_AP_PASSWORD` em `secrets.h` também aceita essa palavra-passe como alternativa;
 não altera a configuração persistida. `SETUP` na consola USB mostra ambas as
 palavras-passe atuais para recuperar o acesso sem apagar as configurações. Guarda apenas

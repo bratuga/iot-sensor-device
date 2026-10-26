@@ -2,9 +2,9 @@
 
 ## Acesso web
 
-Utilizador `admin`; password gerada no primeiro arranque e conservada em NVS.
+Utilizador `admin`; password gerada no primeiro arranque e conservada na configuração em flash.
 O comando `SETUP` na consola USB mostra a password do AP e a password Web
-guardada no JSON da NVS, e ativa o AP protegido. Durante os testes, compilações
+guardada na configuração, e ativa o AP protegido. Durante os testes, compilações
 locais com `LOCAL_AP_PASSWORD` também aceitam essa password no login Web como
 alternativa, sem alterar a configuração guardada. Compilações obtidas do CI sem
 `secrets.h` continuam a usar apenas a password Web guardada. Não existe password padrão igual em todos
@@ -18,7 +18,12 @@ o dispositivo voltar a conseguir ligar-se à LAN. O comando `SETUP` exige acesso
 físico à consola; não está exposto pela API web.
 
 Passwords não são devolvidas por `/api/config` nem incluídas na exportação.
-São guardadas na NVS; esta versão não ativa flash encryption nem secure boot.
+São guardadas na partição SPIFFS; esta versão não ativa flash encryption nem secure boot.
+Ao instalar esta versão, a configuração antiga da NVS é migrada automaticamente;
+a cópia NVS não é apagada. A partição de ficheiros tem de conservar-se durante
+as atualizações (não usar `pio run -t erase` nem carregar uma imagem de filesystem
+que substitua os ficheiros de configuração). Os dados `heating/layout` e
+`heating/values` continuam na NVS.
 Não expor a interface HTTP à Internet. Todos os pedidos de alteração exigem
 autenticação e o token CSRF obtido após autenticação.
 

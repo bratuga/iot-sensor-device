@@ -1,8 +1,64 @@
 #include "Config.h"
+#include "ConfigJournal.h"
 #include <WiFi.h>
+#include <SPIFFS.h>
 #include <cctype>
+#include <cstring>
 #include <initializer_list>
+#include <memory>
+#include <new>
 Config config;
+namespace {
+// The old NVS string remains untouched, so an interrupted migration can retry.
+// Each update replaces the older of two files only after the new one is verified.
+const char *const configFiles[] = {"/config0.bin", "/config1.bin"};
+bool configStorage() {
+  static bool attempted = false, ready = false;
+  if (!attempted) {
+    attempted = true;
+    ready = SPIFFS.begin(true); // Formats only the existing SPIFFS partition if uninitialised.
+    if (!ready) Serial.println("Configuracao: particao SPIFFS indisponivel");
+  }
+  return ready;
+}
+bool readConfigFile(unsigned slot, String &content, uint32_t &sequence) {
+  if (!configStorage()) return false;
+  File file = SPIFFS.open(configFiles[slot], "r");
+  if (!file) return false;
+  configjournal::Header header{};
+  if (file.size() < sizeof(header) || file.read(reinterpret_cast<uint8_t *>(&header), sizeof(header)) != sizeof(header) ||
+      header.magic != configjournal::Magic || header.length == 0 || header.length > configjournal::MaxLength ||
+      file.size() != sizeof(header) + header.length) return false;
+  std::unique_ptr<char[]> buffer(new (std::nothrow) char[header.length + 1]);
+  if (!buffer || file.read(reinterpret_cast<uint8_t *>(buffer.get()), header.length) != header.length) return false;
+  buffer[header.length] = '\0';
+  if (std::strlen(buffer.get()) != header.length) return false;
+  String value(buffer.get());
+  if (!configjournal::valid(header, file.size(), value.c_str())) return false;
+  content = value;
+  sequence = header.sequence;
+  return true;
+}
+bool writeConfigFile(unsigned slot, const String &content, uint32_t sequence) {
+  if (!configStorage() || content.isEmpty() || content.length() > configjournal::MaxLength) return false;
+  configjournal::Header header{configjournal::Magic, sequence, uint32_t(content.length()),
+                               configjournal::crc32(content.c_str(), content.length())};
+  File file = SPIFFS.open(configFiles[slot], "w");
+  if (!file) return false;
+  bool ok = file.write(reinterpret_cast<const uint8_t *>(&header), sizeof(header)) == sizeof(header) &&
+            file.write(reinterpret_cast<const uint8_t *>(content.c_str()), content.length()) == content.length();
+  file.flush();
+  file.close();
+  String verified; uint32_t written = 0;
+  return ok && readConfigFile(slot, verified, written) && written == sequence && verified == content;
+}
+bool decodeConfig(const String &data, const Config &old, Config &parsed) {
+  DynamicJsonDocument d(10240);
+  if (deserializeJson(d, data)) return false;
+  String err;
+  return parseConfig(d, old, parsed, err);
+}
+} // namespace
 String randomSecret() {
   char b[25];
   snprintf(b, sizeof(b), "%08lx%08lx%08lx", (unsigned long)esp_random(),
@@ -374,14 +430,31 @@ bool saveConfig(const Config &c) {
     return false;
   String s;
   serializeJson(d, s);
-  Preferences p;
-  if (!p.begin("sensor", false))
-    return false;
-  bool ok = p.putString("config", s) == s.length();
-  p.end();
-  return ok;
+  String stored[2]; uint32_t sequence[2] = {};
+  bool valid[2] = {readConfigFile(0, stored[0], sequence[0]),
+                   readConfigFile(1, stored[1], sequence[1])};
+  unsigned latest = configjournal::newest(valid[0], sequence[0], valid[1], sequence[1]);
+  unsigned target = (valid[0] || valid[1]) ? 1 - latest : 0;
+  uint32_t next = (valid[0] || valid[1]) ? sequence[latest] + 1 : 1;
+  bool saved = writeConfigFile(target, s, next);
+  if (!saved) Serial.println("Configuracao: falha ao gravar/verificar na particao SPIFFS");
+  return saved;
 }
 bool loadConfig(Config &c) {
+  String stored[2]; uint32_t sequence[2] = {};
+  bool valid[2] = {readConfigFile(0, stored[0], sequence[0]),
+                   readConfigFile(1, stored[1], sequence[1])};
+  unsigned latest = configjournal::newest(valid[0], sequence[0], valid[1], sequence[1]);
+  for (unsigned i = 0; i < 2; ++i) {
+    unsigned slot = i ? 1 - latest : latest;
+    Config parsed;
+    if (valid[slot] && decodeConfig(stored[slot], c, parsed)) {
+      c = parsed;
+      Serial.println("Configuracao: ficheiro verificado");
+      return true;
+    }
+  }
+  // Firmware before this migration stored one large string in NVS.
   Preferences p;
   if (!p.begin("sensor", true))
     return false;
@@ -389,13 +462,10 @@ bool loadConfig(Config &c) {
   p.end();
   if (s.isEmpty())
     return false;
-  DynamicJsonDocument d(10240);
-  if (deserializeJson(d, s))
-    return false;
-  String err;
   Config parsed;
-  if (!parseConfig(d, c, parsed, err))
-    return false;
+  if (!decodeConfig(s, c, parsed)) return false;
   c = parsed;
+  if (saveConfig(c)) Serial.println("Configuracao: migrada da NVS sem apagar a copia antiga");
+  else Serial.println("Configuracao: NVS antiga carregada; migracao pendente");
   return true;
 }

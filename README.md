@@ -44,7 +44,7 @@ caracteres; os campos de password vazios mantêm os valores anteriores.
   de publicação espontânea estiverem desligados.
 - Reconexão Wi-Fi/KNX com espera para evitar acumular sessões abandonadas.
 - Monitor de telegramas na web, OLED e consola; comandos USB de diagnóstico.
-- Configuração persistente em NVS; web autenticada, proteção CSRF e OTA autenticada.
+- Configuração persistente em duas cópias verificadas na partição SPIFFS, com migração da NVS antiga; web autenticada, proteção CSRF e OTA autenticada.
 - Exportação JSON sem passwords para consulta; importação automática não implementada.
 
 ## Documentação
