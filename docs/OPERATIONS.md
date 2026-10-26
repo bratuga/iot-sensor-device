@@ -90,3 +90,16 @@ Actions guarda a imagem como artefacto de compilação separado do histórico Gi
 - https://github.com/milesburton/Arduino-Temperature-Control-Library
 - https://github.com/adafruit/Adafruit_BME280_Library
 - https://github.com/adafruit/Adafruit_SSD1306
+
+## Histórico local
+
+O painel inclui Histórico com temperatura das duas sondas, temperatura e humidade
+BME280, e pontos de amostragem com feedback da bomba ligada. As amostras são
+registadas em intervalos de 20 minutos, no máximo 144 registos, e filtradas às
+últimas 48 horas. Um valor indisponível permanece vazio; não é interpolado. A
+bomba só representa o estado observado na amostra, não o seu período contínuo.
+São usadas duas cópias verificadas na partição SPIFFS, independentemente dos
+ficheiros de configuração. Reiniciar e OTA mantêm os registos; apagar ou substituir
+o filesystem apaga-os. O relógio obtém hora por NTP quando possível; sem NTP, a
+página aberta num navegador com hora correta fornece a hora quando o ESP ainda não
+está sincronizado. Sem hora válida não se guardam amostras com data inventada.

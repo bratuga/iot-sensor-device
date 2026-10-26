@@ -1,4 +1,9 @@
 #include "Config.h"
+#include "ConfigJournal.h"
+#include "History.h"
+#include <SPIFFS.h>
+#include <time.h>
+#include <sys/time.h>
 #include "HeatingCore.h"
 #include "HeatingRuntime.h"
 #include "HeatingSnapshot.h"
@@ -100,6 +105,48 @@ struct Reading {
   sensor::Publication publication;
 };
 Reading readings[5];
+bool fresh(unsigned i, uint32_t now);
+history::Data historyData;
+uint32_t historySeq=0, historyRetry=0; int historySlot=-1;
+bool historyStorage=false;
+const char *const historyPaths[]={"/history0.bin","/history1.bin"};
+bool readHistoryFile(unsigned slot, history::Data &out, uint32_t &seq) {
+  File f=SPIFFS.open(historyPaths[slot],"r"); if(!f)return false;
+  configjournal::Header h{};
+  if(f.size()!=sizeof(h)+sizeof(out)||f.read(reinterpret_cast<uint8_t*>(&h),sizeof(h))!=sizeof(h)||
+     h.magic!=configjournal::Magic||h.length!=sizeof(out)||
+     f.read(reinterpret_cast<uint8_t*>(&out),sizeof(out))!=sizeof(out)||out.count>history::Capacity||
+     !configjournal::valid(h,sizeof(h)+sizeof(out),reinterpret_cast<const char*>(&out)))return false;
+  for(unsigned i=0;i<out.count;++i)if(out.records[i].time<history::MinTime ||
+     (i&&out.records[i].time<=out.records[i-1].time))return false;
+  seq=h.sequence;return true;
+}
+void loadHistory(){
+  historyStorage=SPIFFS.begin(false); if(!historyStorage){Serial.println("Historico: armazenamento indisponivel");return;}
+  history::Data a{},b{};uint32_t x=0,y=0;bool av=readHistoryFile(0,a,x),bv=readHistoryFile(1,b,y);
+  if(av||bv){unsigned slot=configjournal::newest(av,x,bv,y);historyData=slot?b:a;historySeq=slot?y:x;historySlot=int(slot);}
+}
+bool saveHistory(const history::Data &data){
+  if(!historyStorage)return false;
+  unsigned slot=historySlot==0?1:0;uint32_t seq=historySeq+1;
+  configjournal::Header h{configjournal::Magic,seq,sizeof(data),configjournal::crc32(reinterpret_cast<const char*>(&data),sizeof(data))};
+  File f=SPIFFS.open(historyPaths[slot],"w");if(!f)return false;
+  bool ok=f.write(reinterpret_cast<const uint8_t*>(&h),sizeof(h))==sizeof(h)&&f.write(reinterpret_cast<const uint8_t*>(&data),sizeof(data))==sizeof(data);
+  f.flush();f.close();history::Data verified{};uint32_t actual=0;
+  if(!ok||!readHistoryFile(slot,verified,actual)||actual!=seq||memcmp(&verified,&data,sizeof(data)))return false;
+  historySlot=int(slot);historySeq=seq;return true;
+}
+void historyLoop(uint32_t now){
+  if(!historyStorage||!sensor::elapsed(now,bootAt,2000)||!sensor::elapsed(now,historyRetry,60000))return;
+  time_t t=time(nullptr);if(t<history::MinTime||t>4102444800LL)return;
+  history::Record r{};r.time=uint32_t(t);const unsigned indexes[]={3,4,0,1};bool any=false;
+  for(unsigned i=0;i<4;i++){bool ok=fresh(indexes[i],now);r.value[i]=history::encode(readings[indexes[i]].value,ok);any|=r.value[i]!=history::Missing;}
+  r.value[4]=heat.output[heating::Runtime::Pump].known ? (heat.output[heating::Runtime::Pump].reported ? 1 : 0) : history::Missing;
+  if(!any)return;
+  history::Data next=historyData;if(!history::add(next,r))return;
+  historyRetry=now;if(saveHistory(next))historyData=next;else Serial.println("Historico: falha ao guardar");
+}
+
 device::RelayState relays[4];
 struct LocalInputState { bool raw=false, active=false, dirty=false; uint32_t changedAt=0; } inputs[4];
 bool thermoDemand=false, thermoSentDemand=false, thermoReported=false, thermoFeedbackKnown=false;
@@ -939,6 +986,21 @@ void setupWeb() {
     web.sendHeader("X-Frame-Options", "DENY");
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
   });
+  web.on("/api/history", HTTP_GET, [] {
+    DynamicJsonDocument d(32768);time_t now=time(nullptr);bool synced=now>=history::MinTime&&now<=4102444800LL;
+    d["synced"]=synced;d["storage"]=historyStorage;JsonArray rows=d.createNestedArray("records");
+    if(synced)for(unsigned i=0;i<historyData.count;i++){const auto &r=historyData.records[i];if(!history::visible(r.time,uint32_t(now)))continue;
+      JsonArray a=rows.createNestedArray();a.add(r.time);for(unsigned j=0;j<5;++j){int16_t v=r.value[j];if(v==history::Missing)a.add(nullptr);else if(j==4)a.add(v);else a.add(float(v)/100.0f);}}
+    if(d.overflowed()){error(500,"Historico demasiado grande");return;}sendJson(d);
+  });
+  web.on("/api/history/time", HTTP_POST, [] {
+    if(!publicMutation())return;time_t current=time(nullptr);
+    if(current>=history::MinTime&&current<=4102444800LL){web.send(200,"application/json","{\"synced\":true}");return;}
+    StaticJsonDocument<128> d;if(deserializeJson(d,web.arg("plain"))||!d["time"].is<uint32_t>()){error(400,"Hora invalida");return;}
+    uint32_t t=d["time"];if(t<history::MinTime||t>4102444800UL){error(400,"Hora invalida");return;}
+    timeval tv{time_t(t),0};if(settimeofday(&tv,nullptr)!=0){error(500,"Falha ao definir hora");return;}
+    web.send(200,"application/json","{\"synced\":true}");
+  });
   web.on("/api/heating/layout", HTTP_GET, [] {
     if(!auth())return;
     DynamicJsonDocument d(16384);
@@ -1195,8 +1257,9 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.5-sonda-save";
+    d["firmware"] = "0.3.6-history";
     d["csrf"] = csrf;
+    d["historyTime"] = time(nullptr)>=history::MinTime;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
     d["rssi"] = WiFi.RSSI();
@@ -1385,6 +1448,8 @@ void setup() {
 #ifdef LOCAL_WIFI_PASSWORD
   if (config.wifiPassword.isEmpty()) config.wifiPassword = LOCAL_WIFI_PASSWORD;
 #endif
+  loadHistory();
+  configTime(0,0,"pool.ntp.org","time.google.com");
   loadHeating();
   loadHeatingValues();
   initRelays();
@@ -1401,7 +1466,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.5-sonda-save. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.6-history. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
@@ -1417,6 +1482,7 @@ void loop() {
   serialCommands();
   if (!updating && !restarting) {
     sampleSensors(millis());
+    historyLoop(millis());
     inputLoop(millis());
     thermostatLoop(millis());
     heatingLoop(millis());

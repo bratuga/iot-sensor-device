@@ -99,6 +99,14 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  assert(!d.getElementById('settingsArea').hidden);assert(d.getElementById('msg').textContent.includes('Nao foi possivel guardar'));
  assert.equal(d.getElementById('rom0').value,'28FF1234567890AB');
  console.log('PASS GPIO DS18B20 saved independently of unsaved fields; invalid pin blocked');
+
+ const now=Math.floor(Date.now()/1000);
+ w.eval(`drawHistory([[${now-1200},35,25,21,55,1],[${now},34,null,21.5,54,0]])`);
+ assert(d.querySelector('#historyChart circle[fill="#d694f5"]'));
+ assert.equal(d.querySelectorAll('#historyChart path').length,4);
+ d.getElementById('viewHistory').click();assert(!d.getElementById('historyArea').hidden);assert(d.getElementById('dashboardArea').hidden);
+ console.log('PASS history chart shows pump feedback and four series with missing readings');
+
  status.thermostatMode=true;status.thermostat={name:'Quarto',on:true,setpoint:22,temperatureValid:true,temperature:20.5,demand:true,feedbackKnown:true,feedback:true,knxConnected:true,pending:false,failed:false};
  await w.eval('dashboard();refresh()');
  assert(d.getElementById('dashboardArea').hidden);assert(!d.getElementById('thermostatView').hidden);
