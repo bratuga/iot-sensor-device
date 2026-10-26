@@ -44,12 +44,13 @@ int main(){
   // Add a second room under a running pump; no new pump command is needed.
   r.demand[7]=true;r.tick(102,true);assert(r.output[8].command&&r.output[0].command&&r.output[7].command);
   sent(r,7,103);r.tick(104,true);assert(r.output[8].command&&!r.fault);
-  // Closing a path follows the existing pump-OFF feedback sequence.
-  r.demand[0]=false;r.tick(105,true);assert(!r.output[8].command&&r.output[0].command);
-  sent(r,8,106);r.tick(106,true);assert(!r.output[0].command&&r.output[7].command);
-  sent(r,0,107);r.tick(203,true);assert(r.output[8].command&&!r.fault);
+  // The old path stays open until the remaining circuit is confirmed and ready.
+  r.demand[0]=false;r.tick(105,true);assert(r.output[8].command&&r.output[0].command);
+  r.tick(202,true);assert(r.output[0].command&&r.output[8].command);
+  r.tick(203,true);assert(!r.output[0].command&&r.output[8].command);
+  sent(r,0,204);assert(r.output[8].command&&!r.fault);
   r.tick(204,false);assert(r.fault&&!r.output[8].command&&r.output[7].command);}
- {Runtime r;boot(r);r.demand[0]=true;r.tick(1,true);r.output[0].sent=true;r.report(0,true,2);assert(!r.confirmed(0,true,2));r.acknowledge(0,true);assert(r.confirmed(0,true,3));r.set(0,false,4);assert(!r.output[0].known);r.output[0].sent=true;r.acknowledge(0,true);assert(!r.confirmed(0,false,5));r.report(0,false,6);assert(r.confirmed(0,false,6));r.acknowledge(0,false);assert(!r.confirmed(0,false,7));}
+ {Runtime r;boot(r);r.demand[0]=true;r.tick(1,true);r.output[0].sent=true;r.report(0,true,2);assert(!r.confirmed(0,true,2));r.acknowledge(0,true);assert(r.confirmed(0,true,3));r.set(0,false,4);assert(r.output[0].known&&r.output[0].reported);r.output[0].sent=true;r.acknowledge(0,true);assert(!r.confirmed(0,false,5));r.report(0,false,6);assert(r.confirmed(0,false,6));r.acknowledge(0,false);assert(!r.confirmed(0,false,7));}
  {Runtime r;r.tick(0,true);r.output[8].sent=true;r.report(8,false,1);assert(!r.arm(1));r.acknowledge(8,true);for(unsigned i=0;i<8;++i)sent(r,i,2);assert(r.arm(2));}
  {Snapshot s;s.hasTemperature=s.hasSetpoint=true;s.temperature=19;s.setpoint=22;ZoneInput z;z.source=TemperatureSource::Knx;z.hysteresis=0.5f;z.maxAgeMs=300000;s.restore(z);assert(z.temperature==19&&z.setpoint==22&&z.setpointValid);assert(!z.valid&&!z.demand(1,false));z.valid=true;z.receivedAt=2;assert(z.demand(2,false));s.setpoint=100;s.restore(z);assert(!z.setpointValid&&!z.valid);}
  {ReadSweep sweep;assert(!sweep.remaining);for(unsigned rooms=0;rooms<=16;++rooms){sweep.start(rooms);assert(sweep.index==8);unsigned reads=0;bool seen[57]={};for(unsigned tick=0;tick<10000;++tick){if(sweep.remaining){assert(!seen[sweep.index]);seen[sweep.index]=true;++reads;sweep.complete();}}assert(reads==9+3*rooms&&!sweep.remaining);sweep.complete();assert(!sweep.remaining);}}

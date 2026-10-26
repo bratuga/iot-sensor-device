@@ -1,6 +1,6 @@
 # Aquecimento por divisões e coletor KNX
 
-## Configurações 0.3.0
+## Configurações 0.3.2
 
 As configurações têm quatro separadores: **Funcionalidades** (escolha do modo,
 divisões e associações, sensores, relés e entradas), **KNX** (apenas os canais
@@ -9,6 +9,11 @@ e **Configuração** (rede, nome, diagnóstico, firmware, backup e terminal).
 Guardar as configurações gerais reinicia o ESP; o mapa do coletor tem um botão
 de gravação separado. Os campos ocultos ao trocar de separador mantêm o que foi
 digitado até guardar ou sair.
+
+Em **Funcionalidades → Controlo de piso radiante**, a bomba tem «Tempo de
+serviço» (900000 ms = 15 minutos) e «Pausa de serviço» (300000 ms = 5 minutos).
+Ambos aceitam 1 minuto a 24 horas. Configurações anteriores recebem os valores
+predefinidos ao serem carregadas, sem apagar o mapa KNX.
 
 O modo **Termóstato de divisão** é exclusivo do controlo do coletor. Exige
 BME280 ativo, KNX ligado e publicação da temperatura BME no canal 1 DPT 9.001.
@@ -105,8 +110,10 @@ Para arrancar: comandar as válvulas pedidas, receber feedback elétrico ON e
 aguardar o tempo de abertura configurado (inicialmente 120 segundos). Só depois
 comandar a bomba. Quando outra divisão pede calor enquanto a bomba já trabalha
 com um percurso confirmado, abre-se o circuito adicional sem desligar a bomba.
-Para fechar um circuito, para-se primeiro a bomba e aguarda-se feedback OFF
-antes de mudar as válvulas. Perda de KNX, falta de feedback ou erro de envio
+Um circuito só fecha com a bomba ligada se outro percurso continuar confirmado
+e tiver cumprido o tempo de abertura. Ao desligar o último circuito, desliga-se
+primeiro a bomba e aguarda-se o feedback OFF antes de fechar a válvula.
+Perda de KNX, falta de feedback ou erro de envio
 bloqueiam o controlo e pedem OFF da bomba; os percursos existentes são mantidos
 até receber feedback OFF. Uma rede indisponível não permite garantir a execução
 do comando remoto: configure também o comportamento de falha nos atuadores.
@@ -205,11 +212,22 @@ feedback do atuador correspondente. O ACK sozinho não confirma a saída.
 Após pedido de calor, o tempo de abertura começa no primeiro feedback ON da
 válvula; telegramas ON repetidos não reiniciam esse tempo. A bomba liga após a
 confirmação e abertura dos circuitos pedidos. Ao adicionar um circuito, a bomba
-permanece ligada enquanto já houver outro percurso confirmado. Na paragem ou
-fecho de um circuito, espera-se o feedback OFF da bomba antes de fechar a válvula. A bomba só volta
-a ligar quando todas as transições dos circuitos utilizados estão confirmadas. Perda de ligação
-exige nova confirmação e reativação manual. Um ON externo da bomba quando está
-pedido OFF provoca um comando OFF e uma falha explícita.
+permanece ligada enquanto já houver outro percurso confirmado. Se outro circuito
+permanecer confirmado e tiver cumprido o tempo de abertura, o anterior fecha
+sem interromper a bomba; caso contrário mantém-se aberto até haver substituto
+pronto, ou desliga-se a bomba antes de fechar o último. A bomba funciona em
+ciclos configuráveis de 15 minutos de serviço e 5 minutos de pausa por defeito:
+durante a pausa as válvulas pedidas ficam abertas, e o tempo começa após feedback
+OFF da bomba. Um novo pedido não salta a pausa. A interface apresenta uma barra
+vermelha durante a espera de abertura, verde durante o serviço e laranja na pausa.
+Cada válvula mostra «A abrir» e o tempo restante após feedback ON.
+Perda de ligação exige nova confirmação e reativação manual. Um ON externo da
+bomba sem qualquer percurso pronto provoca um comando OFF e uma falha explícita.
+Um feedback espontâneo de circuito atualiza o estado observado e pode iniciar o
+tempo de abertura; um feedback espontâneo da bomba atualiza o estado observado,
+respeitando a regra de percurso confirmado. O feedback do grupo da divisão
+recebido de outro dispositivo não altera o pedido interno; apenas o endereço
+de comando da divisão altera o seu estado e provoca a publicação do feedback.
 
 As falhas identificam a saída e os grupos KNX (ou perda de ligação/caminho).
 O desenho da bomba mostra apenas o estado da bomba; a falha do controlo aparece

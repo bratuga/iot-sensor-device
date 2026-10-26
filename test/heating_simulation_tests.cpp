@@ -29,7 +29,12 @@ struct Sim {
   if(age(now,lastSend)>=200 && accept){int n=r.nextCommand(now);if(n>=0){
    unsigned i=unsigned(n);assert(r.active(i));auto &a=r.output[i];
    if(i==8&&a.command){bool path=false;for(unsigned j=0;j<8;++j)path|=physical[j]&&age(now,energized[j])>=r.openMs;assert(path);}
-   if(i<8&&!a.command&&physical[i])assert(!physical[8]);
+   if(i<8&&!a.command&&physical[i]&&physical[8]){
+    bool retained=false;
+    for(unsigned j=0;j<8;++j)if(j!=i)retained|=physical[j]&&
+      (r.demand[j]||r.external[j])&&age(now,energized[j])>=r.openMs;
+    assert(retained);
+   }
    a.sent=true;a.acknowledged=false;a.changed=now;lastSend=now;++writes[i];++generation[i];
    if(a.command&&!physical[i])energized[i]=now;
    physical[i]=a.command;
@@ -94,14 +99,42 @@ int main(int argc,char **argv){
   assert(s.physical[8]);unsigned pumpWrites=s.writes[8];s.r.demand[7]=true;
   for(uint32_t t=6010;t<=9000;t+=10){s.step(t);assert(s.physical[8]&&!s.r.fault);}
   assert(s.physical[3]&&s.physical[7]&&s.writes[8]==pumpWrites);
-  // Closing one path still waits for pump OFF feedback.
+  // Closing one path keeps the pump running when another path is ready.
   s.r.demand[3]=false;s.run(11000);
-  assert(!s.r.fault&&s.physical[7]&&!s.physical[3]&&s.physical[8]&&s.writes[8]==pumpWrites+2);
+  assert(!s.r.fault&&s.physical[7]&&!s.physical[3]&&s.physical[8]&&s.writes[8]==pumpWrites);
  }
  {Sim s(136);s.r.openMs=1000;s.boot();s.r.demand[3]=true;s.run(6000);
   unsigned pumpWrites=s.writes[8];s.r.demand[3]=false;s.r.demand[7]=true;
-  for(uint32_t t=6010;t<=7200;t+=10){s.step(t);assert(!s.r.fault);}
-  s.run(8500);assert(!s.physical[3]&&s.physical[7]&&s.physical[8]&&s.writes[8]==pumpWrites+2);
+  for(uint32_t t=6010;t<=7200;t+=10){s.step(t);assert(s.physical[8]&&!s.r.fault);}
+  s.run(8500);assert(!s.physical[3]&&s.physical[7]&&s.physical[8]&&s.writes[8]==pumpWrites);
+ }
+ // Bounded pump duty: OFF feedback starts the pause, valves remain open, then
+ // the still-requested circuit resumes without another valve command.
+ {Sim s(8);s.r.openMs=1000;s.r.serviceMs=2000;s.r.pauseMs=1500;s.boot();s.r.demand[3]=true;
+  s.run(5000);assert(s.physical[8]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Service);
+  unsigned valveWrites=s.writes[3],pumpWrites=s.writes[8];
+  s.run(6500);assert(!s.physical[8]&&s.physical[3]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Pause);
+  s.run(7600);assert(!s.physical[8]&&s.writes[8]==pumpWrites+1);
+  s.run(8300);assert(s.physical[8]&&s.writes[8]==pumpWrites+2&&s.writes[3]==valveWrites);
+  s.r.demand[3]=false;s.run(9400);assert(!s.physical[8]&&!s.physical[3]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Idle);
+ }
+ // An unsolicited circuit feedback is observed and can supply a ready path;
+ // no fabricated local valve command is required to show or use that path.
+ {Sim s(8);s.r.openMs=1000;s.boot();unsigned valveWrites=s.writes[3];
+  s.physical[3]=true;s.energized[3]=s.now;s.deliver(3,true);
+  assert(s.r.external[3]&&s.r.output[3].known&&s.r.output[3].reported);
+  s.run(3300);assert(!s.physical[8]);s.run(4700);assert(s.physical[8]&&s.writes[3]==valveWrites);
+  s.run(37000);assert(!s.r.fault&&s.writes[3]==valveWrites);
+  s.physical[3]=false;s.deliver(3,false);s.run(40000);
+  assert(!s.r.external[3]&&!s.physical[8]&&!s.r.fault);
+ }
+ // A different device may start the pump once a valve has been confirmed open.
+ // Its spontaneous feedback updates the state without an echo command.
+ {Sim s(8);s.r.openMs=1000;s.r.serviceMs=2000;s.boot();
+  s.physical[3]=true;s.energized[3]=s.now;s.deliver(3,true);
+  s.now=4000;s.physical[8]=true;s.deliver(8,true);unsigned writes=s.writes[8];
+  s.step(4010);assert(!s.r.fault&&s.r.output[8].reported&&s.r.serviceActive&&s.writes[8]==writes);
+  s.run(6200);assert(!s.physical[8]&&s.physical[3]);
  }
  // Seeded changing demand with asynchronous feedback: no pump/path invariant violations.
  for(unsigned seed=1;seed<=32;++seed){

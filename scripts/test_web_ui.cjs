@@ -9,6 +9,13 @@ click('hz1','Associar circuito');click('hz0','Remover divisão');assert.equal(w.
 click('hz0','Retirar');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===-1).length'),8);
 for(let i=0;i<8;i++)click('hz0','Associar circuito');assert.equal(w.eval('heatingDraft.circuits.filter(c=>c.zone===0).length'),8);assert([...d.querySelectorAll('#hz0 button')].find(b=>b.textContent==='Associar circuito').disabled);
 w.eval('heatingPlan=JSON.parse(JSON.stringify(heatingDraft));heatingPlan.circuits[7].state="ligado";renderHeatStatus();');assert.equal(d.querySelectorAll('#branches .collector-circuit[data-active="true"]').length,1);assert.equal(d.querySelectorAll('#branches .collector-circuit').length,8);
+for(const [phase,total,left,color] of [['waiting',120000,90000,'waiting'],['service',900000,450000,'service'],['pause',300000,150000,'pause']]){
+ w.eval(`Object.assign(heatingPlan,{pumpPhase:${JSON.stringify(phase)},pumpPhaseTotalMs:${total},pumpRemainingMs:${left}});heatingPlan.circuits[7].openingRemainingMs=90000;renderHeatStatus();`);
+ assert.equal(d.getElementById('pumpPhase').dataset.phase,color);assert.equal(d.getElementById('pumpPhaseFill').style.width,phase==='waiting'?'25%':'50%');
+ assert(d.getElementById('pumpPhaseLabel').textContent.includes(Math.ceil(left/1000)+' s'));
+ assert(d.querySelector('#branches .collector-circuit[data-opening="true"]').textContent.includes('A abrir 90 s'));
+}
+assert.equal(d.getElementById('heatService').value,'900000');assert.equal(d.getElementById('heatPause').value,'300000');
 console.log('PASS DOM: dynamic rooms, multiple/eight associations, remove/reindex/release, draft preserved during refresh, pump and head lights');
 
 w.eval('heatingPlan.armed=true;heatingPlan.control.rooms[0].mode=2;renderHeatStatus();');assert.equal(d.querySelector('#rooms .power').getAttribute('aria-pressed'),'true');

@@ -67,7 +67,7 @@ struct HeatConfig {
  uint16_t command[9]={}, feedback[9]={}, enable[MaxRooms]={}, status[MaxRooms]={}, temperature[MaxRooms]={}, setpoint[MaxRooms]={};
  bool external[MaxRooms]={}, bmeFallback[MaxRooms]={};
  float margin[MaxRooms]={};
- uint32_t openMs=120000, maxAgeMs=300000;
+ uint32_t openMs=120000, maxAgeMs=300000, serviceMs=900000, pauseMs=300000;
 } hc;
 heating::ZoneInput hz[MaxRooms];
 heating::ZoneInput effective[MaxRooms];
@@ -692,7 +692,9 @@ bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
  JsonObject c=d["control"];
  if(!c["enabled"].is<bool>())return false;
  n.enabled=c["enabled"]; n.openMs=c["openMs"]|120000u; n.maxAgeMs=c["maxAgeMs"]|300000u;
- if(n.openMs<1000||n.openMs>600000||n.maxAgeMs<10000||n.maxAgeMs>3600000)return false;
+ n.serviceMs=c["serviceMs"]|900000u; n.pauseMs=c["pauseMs"]|300000u;
+ if(n.openMs<1000||n.openMs>600000||n.maxAgeMs<10000||n.maxAgeMs>3600000||
+    n.serviceMs<60000||n.serviceMs>86400000||n.pauseMs<60000||n.pauseMs>86400000)return false;
  if(!c["actuators"].is<JsonArray>()||!c["rooms"].is<JsonArray>()||c["actuators"].size()!=9||c["rooms"].size()!=d["zones"].size())return false;
  uint16_t used[82]={}; unsigned count=0;
  auto group=[&](JsonVariant v,uint16_t &g){
@@ -826,7 +828,7 @@ void heatingLoop(uint32_t now) {
   zoneDemand[i]=heating::roomDemand(heat.armed,zoneMode[i],zoneEnabled[i],hc.external[i],effective[i],now,zoneDemand[i]);
  }
  for(unsigned i=0;i<8;++i)heat.demand[i]=heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
- heat.openMs=hc.openMs;heat.tick(now,link);
+ heat.openMs=hc.openMs;heat.serviceMs=hc.serviceMs;heat.pauseMs=hc.pauseMs;heat.tick(now,link);
  if(!heat.armed)for(unsigned i=0;i<roomCount;++i)zoneDemand[i]=false;
  static bool hadFault=false;
  if(heat.fault&&!hadFault)Serial.println("Aquecimento: "+heatingBlockReason());
@@ -868,13 +870,17 @@ void heatingJson(JsonDocument &d, bool includeConfig=true) {
   d["canArm"]=hc.enabled&&!config.thermostatMode&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
   d["armed"]=heat.armed;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
   JsonObject control;
-  if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;
+  if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;control["serviceMs"]=hc.serviceMs;control["pauseMs"]=hc.pauseMs;
     JsonArray aa=control.createNestedArray("actuators");
     for(unsigned i=0;i<9;++i){auto a=aa.createNestedObject();a["command"]=hc.command[i]?groupText(hc.command[i]):"";a["feedback"]=hc.feedback[i]?groupText(hc.feedback[i]):"";}}
   JsonArray rr=includeConfig?control.createNestedArray("rooms"):d.createNestedArray("rooms");
   for(unsigned i=0;i<roomCount;++i){auto r=rr.createNestedObject();if(includeConfig){r["enable"]=hc.enable[i]?groupText(hc.enable[i]):"";r["status"]=hc.status[i]?groupText(hc.status[i]):"";r["temperature"]=hc.temperature[i]?groupText(hc.temperature[i]):"";r["setpoint"]=hc.setpoint[i]?groupText(hc.setpoint[i]):"";r["external"]=hc.external[i];r["bmeFallback"]=hc.bmeFallback[i];r["margin"]=hc.margin[i];}r["hasSetpoint"]=hc.setpoint[i]!=0;r["source"]=effective[i].valid?(effective[i].source==heating::TemperatureSource::Bme280?"BME local":"KNX"):"recurso / aguarda leitura";r["valid"]=effective[i].fresh(millis());r["value"]=effective[i].valid?effective[i].temperature:20;r["temperatureKnown"]=true;r["temperatureFresh"]=effective[i].valid;r["defaultTemperature"]=!effective[i].valid;r["setpointKnown"]=hz[i].setpointValid;r["target"]=hz[i].setpoint;r["setpointPending"]=setpointPending[i]!=0;r["setpointFailed"]=setpointFailed[i];r["mode"]=zoneMode[i];r["enabled"]=zoneEnabled[i];r["demand"]=zoneDemand[i];}
-  auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!heat.active(i))return "nao utilizado";if(a.sent&&!heat.confirmed(i,a.command,millis()))return heating::age(millis(),a.changed)>=heat.timeoutMs?"sem confirmação":"pendente";if(!a.known)return "desconhecido";if(a.reported!=a.command)return "pendente";return a.reported?"ligado":"desligado";};
+  auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!heat.active(i))return "nao utilizado";if(a.sent&&!heat.confirmed(i,a.command,millis())&&!(i<8&&heat.external[i]))return heating::age(millis(),a.changed)>=heat.timeoutMs?"sem confirmação":"pendente";if(!a.known)return "desconhecido";return a.reported?"ligado":"desligado";};
   d["pumpState"] = state(8);
+  const auto phase=heat.pumpPhase(millis());
+  d["pumpPhase"]=phase==heating::Runtime::PumpPhase::Waiting?"waiting":phase==heating::Runtime::PumpPhase::Service?"service":phase==heating::Runtime::PumpPhase::Pause?"pause":"idle";
+  d["pumpRemainingMs"]=heat.phaseRemaining(millis());
+  d["pumpPhaseTotalMs"]=phase==heating::Runtime::PumpPhase::Waiting?heat.openMs:phase==heating::Runtime::PumpPhase::Service?heat.serviceMs:phase==heating::Runtime::PumpPhase::Pause?heat.pauseMs:0;
   JsonArray zones = d.createNestedArray("zones");
   for (unsigned i=0;i<roomCount;++i) zones.add(heatingZones[i]);
   JsonArray circuits = d.createNestedArray("circuits");
@@ -883,6 +889,7 @@ void heatingJson(JsonDocument &d, bool includeConfig=true) {
     item["position"] = int(heatingLayout.position[i]);
     item["zone"] = int(heatingLayout.zone[i]);
     item["state"] = state(i);
+    item["openingRemainingMs"] = heat.pathConfirmed(i,millis()) && !heat.pathReady(i,millis()) && (heat.demand[i]||heat.external[i]) ? heat.openMs-heating::age(millis(),heat.output[i].onSince) : 0;
   }
 }
 bool parseHeating(JsonDocument &d, heating::RuntimeLayout &layout, String names[MaxRooms]) {
@@ -1188,7 +1195,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.1-oled-pump";
+    d["firmware"] = "0.3.2-pump-duty-feedback";
     d["csrf"] = csrf;
     d["ip"] =
         WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : WiFi.softAPIP().toString();
@@ -1394,7 +1401,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.1-oled-pump. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.2-pump-duty-feedback. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
