@@ -51,7 +51,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <section><h2>Actuadores locais · comando e feedback</h2><div id="relayKnx"></div></section>
 <section><h2>Inputs locais · envio</h2><div id="inputKnx"></div></section></div>
 <div id="tab-hardware" class="tab-panel" role="tabpanel" hidden>
-<section><h2>Sensores e OLED · pinos</h2><div class="grid" id="hardware"></div><p><button id="saveOneWire" type="button">Guardar apenas GPIO DS18B20 e reiniciar</button> <button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p class="hint">Primeiro guarda o GPIO com os canais DS18B20 desativados e as ROM vazias. Depois do reinício, copia cada código de «Sondas detetadas» para a ROM correspondente e guarda novamente. O botão acima guarda apenas este GPIO; não guarda outros campos alterados.</p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
+<section><h2>Sensores e OLED · pinos</h2><div class="grid" id="hardware"></div><p><button id="saveOneWire" type="button">Guardar apenas GPIO DS18B20 e reiniciar</button> <button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p>Sondas detetadas: <span id="hardwareRoms">Nenhuma; configura o GPIO e reinicia</span></p><p class="hint">Primeiro guarda o GPIO com os canais DS18B20 desativados e as ROM vazias. Depois do reinício, copia cada código de «Sondas detetadas» para a ROM correspondente e guarda novamente. O botão acima guarda apenas este GPIO; não guarda outros campos alterados.</p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
 <section><h2>GPIO dos relés</h2><div id="relayHardware"></div></section>
 <section><h2>GPIO dos inputs</h2><div id="inputHardware"></div><p class="hint">GPIO 34/35/36/39 exigem resistência externa. As outras entradas usam pull-up (ativo baixo) ou pull-down (ativo alto) internos.</p></section></div>
 <div id="tab-config" class="tab-panel" role="tabpanel" hidden>
@@ -294,6 +294,7 @@ async function refresh(){if(busy)return;try{
  $('inputStates').textContent='';$('inputSection').hidden=!(s.inputs||[]).some(i=>i.enabled);
  for(const item of s.inputs||[]){if(!item.enabled)continue;const tile=document.createElement('div');tile.className='card';tile.textContent=item.name+' · '+(item.active?'Ativo':'Inativo')+' · GPIO '+item.gpio;$('inputStates').append(tile);}
  $('roms').textContent=s.roms.join(', ')||'Nenhuma; configura o GPIO e reinicia';
+ $('hardwareRoms').textContent=$('roms').textContent;
  const log=s.telegrams.join('\n')||'Ainda não foram recebidos telegramas';$('telegrams').textContent=log;$('knxConsole').textContent=log;
  }catch(e){$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
 }
