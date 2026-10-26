@@ -51,7 +51,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <section><h2>Actuadores locais · comando e feedback</h2><div id="relayKnx"></div></section>
 <section><h2>Inputs locais · envio</h2><div id="inputKnx"></div></section></div>
 <div id="tab-hardware" class="tab-panel" role="tabpanel" hidden>
-<section><h2>Sensores e OLED · pinos</h2><div class="grid" id="hardware"></div><p><button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
+<section><h2>Sensores e OLED · pinos</h2><div class="grid" id="hardware"></div><p><button id="saveOneWire" type="button">Guardar apenas GPIO DS18B20 e reiniciar</button> <button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p class="hint">Primeiro guarda o GPIO com os canais DS18B20 desativados e as ROM vazias. Depois do reinício, copia cada código de «Sondas detetadas» para a ROM correspondente e guarda novamente. O botão acima guarda apenas este GPIO; não guarda outros campos alterados.</p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
 <section><h2>GPIO dos relés</h2><div id="relayHardware"></div></section>
 <section><h2>GPIO dos inputs</h2><div id="inputHardware"></div><p class="hint">GPIO 34/35/36/39 exigem resistência externa. As outras entradas usam pull-up (ativo baixo) ou pull-down (ativo alto) internos.</p></section></div>
 <div id="tab-config" class="tab-panel" role="tabpanel" hidden>
@@ -234,6 +234,11 @@ $('settings').onsubmit=async e=>{e.preventDefault();if(busy)return;if(setpointEd
  next.channels=cfg.channels.map((c,i)=>{const n={...c,enabled:$('channelEnabled'+i).checked};for(const[k,,t]of cs)n[k]=value(i+'_'+k,t);return n;});
  await adminApi('/api/config',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(next)});dashboard();show('Configuração guardada. O dispositivo vai reiniciar.');
 }catch(e){show(e.message);}finally{busy=false;}};
+$('saveOneWire').onclick=async()=>{if(busy)return;const pin=Number($('oneWire').value);if($('oneWire').value.trim()===''||!Number.isInteger(pin)){show('Indica um GPIO inteiro para DS18B20 (ou -1 para desativar).');return;}busy=true;try{
+ const next=JSON.parse(JSON.stringify(cfg));next.oneWire=pin;
+ await adminApi('/api/config',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(next)});
+ dashboard();show('GPIO DS18B20 guardado. Após o reinício, consulta as sondas detetadas e preenche as ROM.');
+}catch(e){show('GPIO DS18B20 não guardado: '+e.message);}finally{busy=false;}};
 $('oledPreset').onclick=()=>{for(const [id,value]of [['oledSda',4],['oledScl',15],['oledReset',16],['oledAddress',60],['oledHeight',64]])$(id).value=value;$('oledEnabled').checked=true;show('Pinos do OLED integrado aplicados. Guarda e reinicia para testar a deteção.');};
 $('export').onclick=async()=>{try{const backup=await adminApi('/api/backup');const b=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='iot-sensor-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){show(e.message);}};
 $('restore').onclick=async()=>{const file=$('restoreFile').files?.[0];if(!file){show('Escolhe um backup JSON.');return;}if(busy)return;if(setpointEdits.size||thermoEdit){show('Aguarda o envio do setpoint antes de restaurar.');return;}try{const data=await file.text();const parsed=JSON.parse(data);if(parsed.format!=='iot-sensor-backup-v1')throw Error('Formato de backup inválido');if(!confirm('Restaurar a configuração e reiniciar?'))return;busy=true;await adminApi('/api/backup',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:data});dashboard();show('Backup restaurado. O dispositivo vai reiniciar.');}catch(e){show(e.message);}finally{busy=false;}};
