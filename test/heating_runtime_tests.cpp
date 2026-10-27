@@ -15,15 +15,16 @@ int main(){
   assert(!roomDemand(true,0,false,true,z,10000,false));assert(roomDemand(true,0,true,true,z,10000,false));
   assert(roomDemand(true,2,false,false,z,10000,false));assert(!roomDemand(false,2,true,true,z,0,true));
   assert(!roomDemand(true,1,true,true,z,0,true));
-  assert(!manualExpired(2,1799999,0));assert(manualExpired(2,1800000,0));assert(!manualExpired(0,1800000,0));
-  assert(manualExpired(2,uint32_t(0xfffffff0u+1800000u),0xfffffff0u));
+  assert(roomDemand(true,2,true,false,z,1800000,false));
+  assert(roomDemand(true,2,true,false,z,3600000,false));
+  assert(!roomDemand(true,1,false,false,z,3600000,true));
   z.setpoint=23;defaultSetpoint(z,false,300000,0);assert(z.setpoint==23);
   z.setpointValid=false;defaultSetpoint(z,true,300000,0);assert(!z.setpointValid);
   defaultSetpoint(z,false,299999,0);assert(!z.setpointValid);defaultSetpoint(z,false,300000,0);assert(z.setpointValid&&z.setpoint==20);
  }
 
  {ZoneInput z;z.source=TemperatureSource::Knx;z.maxAgeMs=300000;z.setpoint=20;z.setpointValid=true;z.hysteresis=0.6;
-  assert(!selectTemperature(z,true,18,true,299999,299999,0).valid);
+  assert(selectTemperature(z,true,18,true,299999,299999,0).valid);
   auto f=selectTemperature(z,true,18,true,300000,300000,0);assert(f.source==TemperatureSource::Bme280&&f.demand(300000,false));assert(!z.valid);
   assert(!selectTemperature(z,false,18,true,300000,300000,0).valid);
   assert(!selectTemperature(z,true,18,false,300000,300000,0).valid);

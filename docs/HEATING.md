@@ -99,10 +99,9 @@ só pode ser ativado depois do feedback OFF. Escolher em cada divisão:
 
 - Automático: temperatura e setpoint KNX, histerese total de 0,5 °C.
 - Desligado: sem pedido de calor.
-- Botão de ligar/desligar: pedido manual temporário de até 30 minutos, sujeito à mesma sequência da bomba.
+- No modo manual, o botão liga/desliga mantém o pedido até nova alteração ou paragem do controlo; em automático o botão fica oculto.
 
-Um comando KNX de ativação coloca a divisão em automático. Uma resposta a uma
-leitura atualiza a habilitação sem substituir o modo manual escolhido na Web.
+Um comando KNX de ativação atualiza a divisão; no modo manual, altera o pedido manual sem mudar o modo. Uma resposta a uma leitura atualiza a habilitação.
 Temperatura inválida ou expirada cancela o pedido automático. O tempo máximo de
 validade é configurável, inicialmente cinco minutos. Setpoint permitido: 5–35 °C.
 
@@ -192,7 +191,7 @@ desencadear varrimentos do barramento.
 
 Cada divisão permite escolher termostato KNX externo (segue ON/OFF) ou automático ESP (temperatura/setpoint com margem ± configurável, padrão 0,3 °C). O ON/OFF habilita a divisão no automático. O comando e o feedback da divisão respondem a GroupValueRead; mudanças pelo KNX ou painel publicam o feedback. O último pedido é guardado, mas as saídas arrancam desarmadas.
 
-A opção BME local é individual e desligada por defeito. Após 300 segundos desde o arranque, sem temperatura KNX válida dentro da validade configurada, usa uma amostra local válida. Um novo telegrama válido recupera prioridade imediatamente. O BME mede o ambiente junto ao ESP, não cada divisão. Sem sensor válido não há procura automática. Sem setpoint recebido durante 300 segundos usa 20 °C; a temperatura de recurso de 20 °C é apenas apresentada, não habilita aquecimento.
+A opção BME local é individual e desligada por defeito. Sem temperatura KNX válida dentro da validade configurada, usa uma amostra local válida. Um novo telegrama válido recupera prioridade imediatamente. O BME mede o ambiente junto ao ESP, não cada divisão. Sem sensor válido não há procura automática. Sem setpoint recebido durante 300 segundos usa 20 °C; a temperatura de recurso de 20 °C é apenas apresentada, não habilita aquecimento.
 
 No arranque envia OFF à bomba e, após confirmação, aos circuitos configurados (incluindo sem divisão). Só o atuador publica o próprio feedback. Ausência de confirmação é indicada após 30 segundos; não se fabrica um OFF confirmado. Ativar controlo preserva o pedido das divisões. Leituras gerais ocorrem apenas no arranque/reconexão ou botão Reler valores KNX.
 
@@ -251,7 +250,7 @@ Executar `python scripts/test_host.py`, `node scripts/test_web_ui_minimal.cjs` e
 - ACK antes/depois do feedback, atrasos de 27 s, feedback repetido, ausente ou
   contrário, ACK ausente, falha de transporte, fila cheia, reconexão e ON externo.
 - Temperaturas/setpoints, histerese, validade, alternativa BME, modo externo,
-  modo manual de 30 minutos, restauro do setpoint e overflow de `millis()`.
+  modo manual sem limite, restauro do setpoint e overflow de `millis()`.
 - Regressões KNX (50.000 datagramas), leituras finitas e painel DOM, incluindo
   diagnóstico separado da bomba e posições sem utilização.
 

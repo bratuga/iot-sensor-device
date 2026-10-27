@@ -237,7 +237,8 @@ inline ZoneInput selectTemperature(ZoneInput knx, bool fallback, float local,
                                   uint32_t now, uint32_t boot) {
   if(knx.valid && age(now,knx.receivedAt)<knx.maxAgeMs) return knx;
   knx.valid=false;
-  if(fallback && age(now,boot)>=300000 && localValid && std::isfinite(local)) {
+  (void)boot;
+  if(fallback && localValid && std::isfinite(local)) {
     knx.source=TemperatureSource::Bme280;knx.temperature=local;
     knx.receivedAt=localAt;knx.valid=true;
   }
@@ -246,9 +247,6 @@ inline ZoneInput selectTemperature(ZoneInput knx, bool fallback, float local,
 inline bool roomDemand(bool armed, unsigned mode, bool enabled, bool external,
                        const ZoneInput &input, uint32_t now, bool previous) {
   return armed && (mode==2 || (mode==0 && enabled && (external || input.demand(now,previous))));
-}
-inline bool manualExpired(unsigned mode, uint32_t now, uint32_t since) {
-  return mode==2 && age(now,since)>=1800000;
 }
 inline void defaultSetpoint(ZoneInput &input, bool received, uint32_t now, uint32_t boot) {
   // Keep a restored setpoint. An explicit invalid telegram must not become 20 C.
