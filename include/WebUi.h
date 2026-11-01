@@ -387,24 +387,26 @@ async function webMcpMutation(path,payload,refreshTarget='device'){
  const state=await refresh();return {response,state};
 }
 async function webMcpSetRoomSetpoint(input,signal){
+ if(busy)throw Error('Há outra operação ativa na página; espera que termine antes de alterar o setpoint.');
  const target=input?.temperatureC;if(typeof target!=='number'||!Number.isFinite(target)||target<5||target>30||Math.abs(target*2-Math.round(target*2))>0.001)throw Error('O setpoint tem de estar entre 5 e 30 °C, em passos de 0,5 °C.');
- const state=await webMcpFetchHeating();if(!state.outputsEnabled)throw Error('O controlo de piso radiante está desativado ou em modo termóstato.');
+ const state=await webMcpFetchHeating();if(busy)throw Error('Há outra operação ativa na página; tenta novamente quando terminar.');if(!state.outputsEnabled)throw Error('O controlo de piso radiante está desativado ou em modo termóstato.');
  const {room,index}=webMcpRoomIndex(state,input.room);const config=(state.rooms||[])[index]||{};
  if(!config.hasSetpoint)throw Error('Esta divisão não tem endereço KNX de setpoint configurado.');
  const staged=stageRoomSetpoint(index,target,false);
  try{
-  await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');
+  await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');if(busy)throw Error('Outra operação começou durante a espera; o setpoint não foi enviado.');
   if(setpointEdits.get(index)?.version!==staged.version)throw Error('O setpoint foi alterado durante a espera; não enviei o valor antigo.');
   const sent=await sendSetpoint(index,staged.version,true);if(!sent||!sent.queued)throw Error(sent?.error||'O setpoint não foi colocado na fila KNX.');
   const updated=heatingPlan||await webMcpFetchHeating();return {accepted:true,room,valueC:target,knxQueued:true,feedbackPending:!!(updated.rooms||[])[index]?.setpointPending,message:'Setpoint guardado e colocado na fila KNX; a confirmação do barramento pode ainda estar pendente.'};
  }catch(error){const edit=setpointEdits.get(index);if(edit===staged.edit&&edit.version===staged.version&&!edit.sending){clearTimeout(edit.timer);setpointEdits.delete(index);renderHeatStatus();}throw error;}
 }
 async function webMcpSetThermostatSetpoint(input,signal){
+ if(busy)throw Error('Há outra operação ativa na página; espera que termine antes de alterar o setpoint.');
  const target=input?.temperatureC;if(typeof target!=='number'||!Number.isFinite(target)||target<5||target>30||Math.abs(target*2-Math.round(target*2))>0.001)throw Error('O setpoint tem de estar entre 5 e 30 °C, em passos de 0,5 °C.');
  const status=await webMcpFetchStatus();latestThermo=status.thermostat;currentThermostatMode=!!status.thermostatMode;renderThermostat(latestThermo);
- if(!currentThermostatMode)throw Error('O modo termóstato local não está ativo.');
+ if(busy)throw Error('Há outra operação ativa na página; tenta novamente quando terminar.');if(!currentThermostatMode)throw Error('O modo termóstato local não está ativo.');
  const staged=stageThermoSetpoint(target,false);
- try{await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');if(thermoEdit?.version!==staged.version)throw Error('O setpoint foi alterado durante a espera; não enviei o valor antigo.');
+ try{await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');if(busy)throw Error('Outra operação começou durante a espera; o setpoint não foi enviado.');if(thermoEdit?.version!==staged.version)throw Error('O setpoint foi alterado durante a espera; não enviei o valor antigo.');
   const sent=await sendThermo(staged.version,true);if(!sent||(!sent.queued&&!sent.ok))throw Error(sent?.error||'O setpoint do termóstato não foi colocado na fila KNX.');return {accepted:true,valueC:target,knxQueued:true,message:'Setpoint guardado e colocado na fila KNX; a confirmação do barramento pode ainda estar pendente.'};
  }catch(error){if(thermoEdit===staged.edit&&thermoEdit.version===staged.version&&!thermoEdit.sending){clearTimeout(thermoEdit.timer);thermoEdit=null;renderThermostat(latestThermo);}throw error;}
 }
