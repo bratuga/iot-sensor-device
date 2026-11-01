@@ -58,7 +58,6 @@ uint32_t lastUploadAt = 0, lostAt = 0, lastWifiAttempt = 0, lastSample = 0, conv
 bool restarting = false, firstSample = true;
 enum class ConfigSavePhase : uint8_t { Idle, Stopping, Saved, Failed };
 ConfigSavePhase configSavePhase = ConfigSavePhase::Idle;
-Config pendingConfigSave;
 bool pendingHeatingSave = false;
 String pendingHeatingBody;
 String configSaveMessage;
@@ -105,6 +104,7 @@ bool heatingSafe();
 void heatingTelegram(const knxip::Telegram &t);
 void heatingLoop(uint32_t now);
 void configSaveLoop(uint32_t now);
+void scheduleConfigRestart();
 unsigned romCount = 0;
 constexpr unsigned MaxLogs=48;
 String logs[MaxLogs];
@@ -713,6 +713,13 @@ void scheduleRestart() {
   restarting = true;
   restartAt = millis();
 }
+void scheduleConfigRestart() {
+  // The saved configuration may point to a different KNX router. Do not wait
+  // for OFF feedback through the old tunnel; startup confirms OFF on the new one.
+  tunnel.stop(millis());
+  restarting = true;
+  restartAt = millis();
+}
 void sendJson(JsonDocument &d, int code = 200) {
   String s;
   serializeJson(d, s);
@@ -769,29 +776,23 @@ void configSaveLoop(uint32_t now) {
   if(configSavePhase==ConfigSavePhase::Stopping){
     const bool ready=config.thermostatMode?thermostatSafe():heatingSafe();
     if(ready){
+      Preferences p;
       bool saved=false;
-      if(pendingHeatingSave){
-        Preferences p;
-        if(p.begin("heating",false)){
-          saved=p.putString("layout",pendingHeatingBody)==pendingHeatingBody.length();
-          p.end();
-        }
-      }else{
-        saved=saveConfig(pendingConfigSave);
+      if(p.begin("heating",false)){
+        saved=p.putString("layout",pendingHeatingBody)==pendingHeatingBody.length();
+        p.end();
       }
       if(!saved){
         configSavePhase=ConfigSavePhase::Failed;
-        configSaveMessage=pendingHeatingSave?
-          "Falha ao gravar o mapa do aquecimento na memória; as saídas ficaram paradas. Tenta novamente.":
-          "Falha ao gravar a configuração na memória; as saídas ficaram paradas. Tenta novamente.";
-        Serial.println(pendingHeatingSave?"Aquecimento: falha ao gravar mapa apos confirmar OFF":"Configuracao: falha ao gravar apos confirmar OFF");
+        configSaveMessage="Falha ao gravar o mapa do aquecimento na memória; as saídas ficaram paradas. Tenta novamente.";
+        Serial.println("Aquecimento: falha ao gravar mapa apos confirmar OFF");
         return;
       }
       pendingHeatingSave=false;
       configSavePhase=ConfigSavePhase::Saved;
-      configSaveMessage="Feedback OFF confirmado; configuração gravada. O ESP vai reiniciar.";
+      configSaveMessage="Feedback OFF confirmado; mapa do aquecimento gravado. O ESP vai reiniciar.";
       configRestartAt=now;
-      Serial.println("Configuracao: feedback OFF confirmado, gravada e a reiniciar");
+      Serial.println("Aquecimento: feedback OFF confirmado, mapa gravado e a reiniciar");
       return;
     }
     if(tunnel.state()==knxip::State::Connected)
@@ -1272,27 +1273,29 @@ void setupWeb() {
         for(const auto&in:next.input)if(in.enabled&&sensor::parseGroup(in.group.c_str(),g)&&g==groups[i]){error(400,"Grupo de input reservado pelo aquecimento");return;}
       }
     }
-    pendingHeatingSave=false;
-      thermoSaveOffCommandSent=thermoSaveOffFeedbackSeen=false;
-    pendingConfigSave=next;
-    configSavePhase=ConfigSavePhase::Stopping;
-    configSaveStartedAt=millis();
-    configSaveMessage="A parar o aquecimento e a aguardar feedback OFF…";
+    if(!saveConfig(next)){
+      error(500,"Falha ao guardar a configuracao na memoria");
+      return;
+    }
+    const uint32_t now=millis();
     pumpThermalGuard.cancelResume();
     if(config.thermostatMode){
-      config.thermostatOn=false;
-      thermoDirty=true;
+      thermoDemand=false;
+      thermoPending=false;
       thermoFailed=false;
+      thermoDirty=true;
       thermoSaveOffCommandSent=false;
       thermoSaveOffFeedbackSeen=false;
     }else{
-      heat.stop(configSaveStartedAt);
+      heat.stop(now);
     }
-    StaticJsonDocument<256> response;
-    response["pending"]=true;
-    response["state"]="stopping";
-    response["message"]=configSaveMessage;
-    sendJson(response,202);
+    for(unsigned i=0;i<4;++i)if(config.relay[i].enabled)setRelay(i,false);
+    saveHeatingValues(true);
+    config=next;
+    configSaveMessage="Configuração guardada; o ESP vai reiniciar e confirmar OFF no arranque.";
+    configSavePhase=ConfigSavePhase::Saved;
+    web.send(200,"application/json","{\"saved\":true,\"reboot\":true}");
+    scheduleConfigRestart();
   });
   web.on("/api/thermostat",HTTP_POST,[]{
     if(!publicMutation())return;
@@ -1398,7 +1401,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.8-thermal-guard";
+    d["firmware"] = "0.3.9-config-save";
     d["csrf"] = csrf;
     d["historyTime"] = time(nullptr)>=history::MinTime;
     d["ip"] =
@@ -1607,7 +1610,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.8-thermal-guard. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.9-config-save. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();

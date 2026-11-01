@@ -127,12 +127,13 @@ bloqueiam o controlo e pedem OFF da bomba; os percursos existentes são mantidos
 até receber feedback OFF. Uma rede indisponível não permite garantir a execução
 do comando remoto: configure também o comportamento de falha nos atuadores.
 
-Ao guardar a configuração principal ou o mapa do coletor, o ESP pára o
-aquecimento, aguarda feedback OFF da bomba e das válvulas utilizadas, grava e
-reinicia. Se o feedback não chegar no prazo, cancela a gravação e informa o
-erro. Alterar o gateway KNX também usa a ligação atual para confirmar OFF antes
-de gravar o novo endereço e reiniciar. A configuração em modo termóstato segue a
-mesma regra e exige feedback OFF do atuador.
+Ao guardar a configuração principal, o ESP grava e reinicia sem esperar pelo
+feedback no túnel atual. Isto permite alterar o endereço do router KNX mesmo
+quando o router antigo não responde. No arranque, o ESP carrega o novo endereço,
+envia OFF à bomba e aguarda o respetivo feedback antes de fechar os circuitos.
+O mapa do coletor continua a aguardar feedback OFF antes de ser gravado; se esse
+feedback não chegar no prazo, a gravação do mapa é cancelada e o painel informa
+o erro.
 
 ## Persistência e implementação
 

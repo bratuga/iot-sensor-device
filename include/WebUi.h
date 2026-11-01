@@ -283,11 +283,11 @@ $('settings').onsubmit=async e=>{e.preventDefault();if(busy)return;if(setpointEd
  next.inputs=(cfg.inputs||[]).map((r,i)=>{const n={...r};for(const[k,,t]of [...isFeature,...isHardware,...isKnx])n[k]=value('in'+i+'_'+k,t);return n;});
  next.rom=[value('rom0'),value('rom1')];
  next.channels=cfg.channels.map((c,i)=>{const n={...c,enabled:$('channelEnabled'+i).checked};for(const[k,,t]of cs)n[k]=durationForApi(k,value(i+'_'+k,t));return n;});
- await applyConfiguration(next,'Configuração guardada após feedback OFF. O ESP está a reiniciar.');
+ await applyConfiguration(next,'Configuração guardada. O ESP reinicia e confirma OFF no arranque.');
 }catch(e){show(e.message);}finally{busy=false;}};
 $('saveOneWire').onclick=async()=>{if(busy)return;const pin=Number($('oneWire').value);if($('oneWire').value.trim()===''||!Number.isInteger(pin)){show('Indica um GPIO inteiro para DS18B20 (ou -1 para desativar).');return;}busy=true;try{
  const next=JSON.parse(JSON.stringify(cfg));next.oneWire=pin;next.rom=[value('rom0').trim(),value('rom1').trim()];
- await applyConfiguration(next,'GPIO e ROM das sondas guardados após feedback OFF. O ESP está a reiniciar.');
+ await applyConfiguration(next,'GPIO e ROM das sondas guardados. O ESP reinicia e confirma OFF no arranque.');
 }catch(e){show('GPIO e ROM das sondas não guardados: '+e.message);}finally{busy=false;}};
 $('oledPreset').onclick=()=>{for(const [id,value]of [['oledSda',4],['oledScl',15],['oledReset',16],['oledAddress',60],['oledHeight',64]])$(id).value=value;$('oledEnabled').checked=true;show('Pinos do OLED integrado aplicados. Guarda e reinicia para testar a deteção.');};
 $('export').onclick=async()=>{try{const backup=await adminApi('/api/backup');const b=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}),url=URL.createObjectURL(b),a=document.createElement('a');a.href=url;a.download='iot-sensor-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){show(e.message);}};

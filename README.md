@@ -7,7 +7,7 @@ valores através do KNX; não há dependência de MQTT nem de HA no firmware.
 
 ## Estado
 
-Firmware atual: **0.3.8-thermal-guard**. O perfil de compilação é ESP32 clássico
+Firmware atual: **0.3.9-config-save**. O perfil de compilação é ESP32 clássico
 com flash de 4 MB; não usar esta imagem num ESP32-S3. Compilar e validar o
 firmware para a revisão da placa antes de instalar.
 
@@ -43,8 +43,9 @@ caracteres; os campos de password vazios mantêm os valores anteriores.
 - Proteções térmicas configuráveis do coletor: pausa se a água de ida ficar
   abaixo do limite, e pausa após a água de retorno exceder o limite pelo tempo
   definido. A proteção exige leituras DS18B20 recentes.
-- Gravação de configurações e do mapa do aquecimento só após pedir OFF e receber
-  o feedback OFF das saídas; o painel acompanha o resultado e o reinício.
+- Gravação da configuração principal sem esperar pelo túnel KNX antigo; após
+  reiniciar, o ESP envia OFF pela ligação configurada e aguarda o feedback.
+- O mapa do aquecimento continua a exigir feedback OFF antes de ser gravado.
 - Monitor de telegramas na web, OLED e consola; comandos USB de diagnóstico.
 - Configuração persistente em duas cópias verificadas na partição SPIFFS, com migração da NVS antiga; web autenticada, proteção CSRF e OTA autenticada.
 - Exportação JSON sem passwords para consulta; importação automática não implementada.
