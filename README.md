@@ -7,7 +7,7 @@ valores através do KNX; não há dependência de MQTT nem de HA no firmware.
 
 ## Estado
 
-Firmware atual: **0.3.10-config-submit**. O perfil de compilação é ESP32 clássico
+Firmware atual: **0.3.11-webmcp**. O perfil de compilação é ESP32 clássico
 com flash de 4 MB; não usar esta imagem num ESP32-S3. Compilar e validar o
 firmware para a revisão da placa antes de instalar.
 
@@ -70,6 +70,18 @@ quando a compilação passa. Binários e caches não são versionados no Git.
 
 A administração usa HTTP numa rede local de confiança. O firmware não implementa
 TLS, KNX Secure, assinatura de firmware nem rollback automático da aplicação.
+
+O painel regista ferramentas WebMCP em navegadores Chromium que suportem a API
+imperativa: consulta de estado e telegramas, controlo do aquecimento, setpoints,
+relés configurados e termóstato local. Os comandos passam pelas APIs do firmware;
+os setpoints só são enviados ao KNX após cinco segundos sem alterações e os
+resultados distinguem comandos em fila de estados confirmados por feedback.
+
+Para os testar localmente no Chrome/Edge, ativa `chrome://flags/#enable-webmcp-testing`
+(Chromium 146 ou superior) e reinicia o navegador. O WebMCP exige um contexto
+seguro: como o ESP serve o painel por HTTP, `http://<IP-do-ESP>` não expõe as
+ferramentas por omissão. Usa uma origem HTTPS de confiança ou uma exceção de
+origem insegura apenas para desenvolvimento local.
 
 ## Saídas de relé (0.2.0)
 
