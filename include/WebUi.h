@@ -20,7 +20,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 .pump-phase{width:100%;max-width:125px;height:9px;margin:7px auto 0;overflow:hidden;border-radius:10px;background:#31424b}.pump-phase span{display:block;height:100%;width:0;transition:width .3s;background:#71808a}.pump-phase[data-phase="waiting"] span{background:#f07168}.pump-phase[data-phase="service"] span{background:#68d69c}.pump-phase[data-phase="pause"] span{background:#efb35a}.pump-phase-label{min-height:24px;margin-top:4px;color:#b9cbd3;font-size:.63rem}.collector-circuit[data-opening="true"] .collector-valve{border-color:#efb35a;box-shadow:0 0 12px #efb35a75}.collector-opening{align-self:end;min-height:12px;font-size:.54rem;color:#efb35a;white-space:nowrap}.collector-circuit[data-opening="true"] .collector-valve-led{color:#efb35a;animation:collector-blink .65s ease-in-out infinite}@media(max-width:720px){.collector-pump-graphic{grid-row:1/6}.pump-phase,.pump-phase-label{grid-column:2;margin-left:0;text-align:left}}
 </style>
 <style>.history-nav{display:flex;gap:8px;margin:10px 0 18px}.history-nav button{background:#263c48;color:#e8eef5}.history-card{overflow:hidden}.history-chart{width:100%;height:auto;display:block;background:#101c25;border-radius:12px}.history-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem}.history-legend span::before{content:"";display:inline-block;width:11px;height:11px;margin-right:5px;background:var(--c);border-radius:50%}</style>
-<header class="page-header"><h1 id="deviceName">Sensor KNX</h1><button type="button" id="restartDevice" class="settings-icon" aria-label="Reiniciar dispositivo" title="Reiniciar dispositivo">⏻</button><button type="button" id="viewSettings" class="settings-icon" aria-label="Configurações" title="Configurações"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button></header><nav class="history-nav" aria-label="Navegação"><button type="button" id="viewPanel">Painel</button><button type="button" id="viewHistory">Histórico</button><button type="button" id="viewHelp">Ajuda</button></nav><div id="msg" role="status"></div><main id="helpArea" hidden><section><h2>Ajuda · controlo do aquecimento</h2><p>Ativa o controlo geral após confirmar o estado da bomba e dos circuitos.</p><p><strong>Automático:</strong> a divisão pede calor de acordo com a temperatura e o setpoint. Sem temperatura válida ou setpoint, deixa de pedir calor e fica cinzenta. Ao regressar uma leitura válida, o automático retoma se o controlo estiver ativo. Se estiver configurado, o BME serve de alternativa quando falta uma temperatura KNX válida.</p><p><strong>Manual:</strong> o botão de ligar/desligar aparece ao lado do modo. O pedido mantém-se até o desligares, mudares de modo ou o controlo parar por falha.</p><p><strong>Bomba e válvulas:</strong> o ESP envia o comando e aguarda o feedback KNX; a bomba espera o tempo de abertura e faz os ciclos de serviço e pausa definidos. Falhas KNX ou de feedback podem parar o controlo e exigir nova ativação.</p><p><strong>Proteção térmica:</strong> se a água de entrada ficar abaixo do limite configurado com a bomba a trabalhar, fecha os circuitos, para a bomba e retoma após a pausa. Se a água de retorno se mantiver acima do limite durante o tempo definido, também pausa. A contagem aparece na barra da bomba. As sondas DS18B20 têm de estar configuradas e a enviar leituras recentes.</p><p><strong>Reiniciar:</strong> primeiro para o aquecimento e aguarda feedback desligado das saídas usadas. Depois do reinício, o controlo geral fica parado.</p><p><strong>Histórico:</strong> regista sensores e amostras do estado da bomba de 20 em 20 minutos. Não participa no controlo.</p></section></main><main id="historyArea" hidden><section class="history-card"><h2>Histórico · últimas 48 horas</h2><p>Uma leitura a cada 20 minutos. Horas apresentadas no fuso horário do navegador. A bomba é indicada apenas nos momentos das amostras.</p><p id="historyMessage" role="status">A carregar…</p><svg id="historyChart" class="history-chart" viewBox="0 0 900 330" role="img" aria-label="Gráfico do histórico de temperatura e humidade"></svg><div class="history-legend"><span style="--c:#ff705c">Sonda 1 · entrada</span><span style="--c:#4db9e7">Sonda 2 · retorno</span><span style="--c:#69d8c3">Temperatura ambiente</span><span style="--c:#efb35a">Humidade</span><span style="--c:#d694f5">Bomba ligada · amostra</span></div></section></main><main id="dashboardArea"><div class="grid top-tiles" id="readings"></div><section id="heating"><h2>Aquecimento · divisões</h2><div id="rooms"></div><p><button id="armHeat">Ativar controlo</button> <button id="stopHeat">Parar aquecimento</button> <button id="refreshHeat">Reler valores KNX</button></p><p id="heatMessage" role="status"></p>
+<header class="page-header"><h1 id="deviceName">Sensor KNX</h1><button type="button" id="restartDevice" class="settings-icon" aria-label="Reiniciar dispositivo" title="Reiniciar dispositivo">⏻</button><button type="button" id="viewSettings" class="settings-icon" aria-label="Configurações" title="Configurações"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button></header><nav class="history-nav" aria-label="Navegação"><button type="button" id="viewPanel">Painel</button><button type="button" id="viewHistory">Histórico</button><button type="button" id="viewHelp">Ajuda</button></nav><div id="msg" role="status"></div><main id="helpArea" hidden><section><h2>Ajuda · controlo do aquecimento</h2><p>Ativa o controlo geral após confirmar o estado da bomba e dos circuitos.</p><p><strong>Automático:</strong> a divisão pede calor de acordo com a temperatura e o setpoint. Sem temperatura válida ou setpoint, deixa de pedir calor e fica cinzenta. Ao regressar uma leitura válida, o automático retoma se o controlo estiver ativo. Se estiver configurado, o BME serve de alternativa quando falta uma temperatura KNX válida.</p><p><strong>Manual:</strong> o botão de ligar/desligar aparece ao lado do modo. O pedido mantém-se até o desligares, mudares de modo ou o controlo parar por falha.</p><p><strong>Bomba e válvulas:</strong> o ESP envia o comando e aguarda o feedback KNX; a bomba espera o tempo de abertura e faz os ciclos de serviço e pausa definidos. Falhas KNX ou de feedback podem parar o controlo e exigir nova ativação.</p><p><strong>Proteção térmica:</strong> se a água de entrada ficar abaixo do limite configurado com a bomba a trabalhar, fecha os circuitos, para a bomba e retoma após a pausa. Se a água de retorno se mantiver acima do limite durante o tempo definido, também pausa. A contagem aparece na barra da bomba. As sondas DS18B20 têm de estar configuradas e a enviar leituras recentes.</p><p><strong>Reiniciar:</strong> primeiro para o aquecimento e aguarda feedback desligado das saídas usadas. Depois do reinício, o controlo geral fica parado.</p><p><strong>Histórico:</strong> regista sensores e amostras do estado da bomba de 20 em 20 minutos. Não participa no controlo.</p><p id="webMcpStatus" role="status">A verificar ferramentas WebMCP…</p></section></main><main id="historyArea" hidden><section class="history-card"><h2>Histórico · últimas 48 horas</h2><p>Uma leitura a cada 20 minutos. Horas apresentadas no fuso horário do navegador. A bomba é indicada apenas nos momentos das amostras.</p><p id="historyMessage" role="status">A carregar…</p><svg id="historyChart" class="history-chart" viewBox="0 0 900 330" role="img" aria-label="Gráfico do histórico de temperatura e humidade"></svg><div class="history-legend"><span style="--c:#ff705c">Sonda 1 · entrada</span><span style="--c:#4db9e7">Sonda 2 · retorno</span><span style="--c:#69d8c3">Temperatura ambiente</span><span style="--c:#efb35a">Humidade</span><span style="--c:#d694f5">Bomba ligada · amostra</span></div></section></main><main id="dashboardArea"><div class="grid top-tiles" id="readings"></div><section id="heating"><h2>Aquecimento · divisões</h2><div id="rooms"></div><p><button id="armHeat">Ativar controlo</button> <button id="stopHeat">Parar aquecimento</button> <button id="refreshHeat">Reler valores KNX</button></p><p id="heatMessage" role="status"></p>
 <article id="collectorCard" class="collector-card" aria-labelledby="collector-title">
 <header class="collector-header"><div class="collector-title-group"><span class="collector-title-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 18h16M7 6v12M12 6v12M17 6v12"/><circle cx="7" cy="10" r="1.4"/><circle cx="12" cy="14" r="1.4"/><circle cx="17" cy="9" r="1.4"/></svg></span><div><h2 id="collector-title">Coletor de piso radiante</h2><p id="collectorSubtitle" class="collector-subtitle">A carregar circuitos…</p></div></div><span id="collectorSummary" class="collector-summary" aria-live="polite">A aguardar estado KNX</span></header>
 <div class="collector-system"><div class="collector-pump" id="pumpState" data-state="off" role="img" aria-label="Bomba: estado desconhecido"><div class="collector-pump-graphic"><span class="collector-pump-shell"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="collector-pump-inner" cx="50" cy="50" r="38"/><g class="collector-pump-rotor"><path d="M50 47C36 45 29 36 31 27c12 0 19 7 22 19Z"/><path d="M50 47C36 45 29 36 31 27c12 0 19 7 22 19Z" transform="rotate(90 50 50)"/><path d="M50 47C36 45 29 36 31 27c12 0 19 7 22 19Z" transform="rotate(180 50 50)"/><path d="M50 47C36 45 29 36 31 27c12 0 19 7 22 19Z" transform="rotate(270 50 50)"/></g><circle class="collector-pump-hub" cx="50" cy="50" r="10"/><circle class="collector-pump-led" cx="50" cy="50" r="3"/></svg></span></div><strong class="collector-pump-name">Bomba de circulação</strong><span class="collector-pump-status" id="pumpStatus">—</span><span class="collector-pump-detail" id="pumpDetail">A aguardar feedback KNX</span><div class="pump-phase" id="pumpPhase" data-phase="idle" role="progressbar" aria-label="Ciclo da bomba" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="pumpPhaseFill"></span></div><span class="pump-phase-label" id="pumpPhaseLabel">Sem pedido</span></div>
@@ -127,21 +127,25 @@ function changeSetpoint(index,delta){
  if(!room||!room.hasSetpoint&&!room.setpoint){show('Configura o endereço KNX do setpoint desta divisão.');return;}
  const existing=setpointEdits.get(index);const previous=existing?existing.value:room.setpointKnown?Number(room.target):20;
  const value=Math.max(5,Math.min(30,Math.round((previous+delta)*2)/2));if(value===previous)return;
- const edit=existing||{value,version:0,timer:null,sending:false,name:heatingPlan.zones[index]};
- edit.value=value;edit.version++;clearTimeout(edit.timer);
- const version=edit.version;edit.timer=setTimeout(()=>sendSetpoint(index,version),5000);
- setpointEdits.set(index,edit);renderHeatStatus();
+ stageRoomSetpoint(index,value,true);
 }
-async function sendSetpoint(index,version){
+function stageRoomSetpoint(index,value,schedule=true){
+ const existing=setpointEdits.get(index);const edit=existing||{value,version:0,timer:null,sending:false,name:heatingPlan.zones[index]};
+ edit.value=value;edit.version++;clearTimeout(edit.timer);
+ const version=edit.version;edit.timer=schedule?setTimeout(()=>sendSetpoint(index,version),5000):null;
+ setpointEdits.set(index,edit);renderHeatStatus();return {edit,version};
+}
+async function sendSetpoint(index,version,throwOnError=false){
  const edit=setpointEdits.get(index);if(!edit||edit.version!==version)return;
  if(edit.sending){edit.timer=setTimeout(()=>sendSetpoint(index,version),250);return;}
  if(!heatingPlan||heatingPlan.zones[index]!==edit.name){setpointEdits.delete(index);renderHeatStatus();show('A divisão mudou; o setpoint pendente não foi enviado.');return;}
- edit.timer=null;edit.sending=true;renderHeatStatus();
+ const value=edit.value;edit.timer=null;edit.sending=true;renderHeatStatus();
  try{
-  await api('/api/heating/setpoint',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({index,value:edit.value})});
+  const result=await api('/api/heating/setpoint',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({index,value})});
   if(edit.version===version)setpointEdits.delete(index);
   await refreshHeat();
- }catch(e){if(edit.version===version)setpointEdits.delete(index);show('Setpoint: '+e.message);await refreshHeat().catch(()=>{});}
+  return {...result,value};
+ }catch(e){if(edit.version===version)setpointEdits.delete(index);show('Setpoint: '+e.message);await refreshHeat().catch(()=>{});if(throwOnError)throw e;return {queued:false,error:e.message};}
  finally{edit.sending=false;if(setpointEdits.get(index)===edit&&edit.version!==version&&!edit.timer)edit.timer=setTimeout(()=>sendSetpoint(index,edit.version),5000);}
 }
 function renderCollector(h){
@@ -314,17 +318,20 @@ function renderThermostat(t){
  $('thermoPending').textContent=thermoEdit?(thermoEdit.sending?'A enviar ao KNX…':'Envia após 5 s sem alterações'):t.failed?'Sem confirmação do atuador':t.pending?'A aguardar feedback KNX…':!t.knxConnected?'A aguardar ligação KNX':'';
  $('thermoHelp').textContent=t.feedbackKnown?'Último feedback KNX: '+(t.feedback?'pedido ativo':'pedido inativo'):'Ainda não foi recebido feedback KNX';
 }
+function stageThermoSetpoint(value,schedule=true){
+ const edit=thermoEdit||{value,version:0,timer:null,sending:false};edit.value=value;edit.version++;
+ clearTimeout(edit.timer);const version=edit.version;edit.timer=schedule?setTimeout(()=>sendThermo(version),5000):null;thermoEdit=edit;renderThermostat(latestThermo);return {edit,version};
+}
 function changeThermo(delta){if(busy||!latestThermo)return;
  const previous=thermoEdit?thermoEdit.value:latestThermo.setpoint;
  const target=Math.max(5,Math.min(30,Math.round((previous+delta)*2)/2));if(target===previous)return;
- const edit=thermoEdit||{value:target,version:0,timer:null,sending:false};edit.value=target;edit.version++;
- clearTimeout(edit.timer);const version=edit.version;edit.timer=setTimeout(()=>sendThermo(version),5000);thermoEdit=edit;renderThermostat(latestThermo);
+ stageThermoSetpoint(target,true);
 }
-async function sendThermo(version){const edit=thermoEdit;if(!edit||edit.version!==version)return;
+async function sendThermo(version,throwOnError=false){const edit=thermoEdit;if(!edit||edit.version!==version)return;
  if(edit.sending){edit.timer=setTimeout(()=>sendThermo(version),250);return;}
- edit.timer=null;edit.sending=true;renderThermostat(latestThermo);
- try{await api('/api/thermostat',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({setpoint:edit.value})});if(edit.version===version)thermoEdit=null;await refresh();}
- catch(e){if(edit.version===version)thermoEdit=null;show('Termóstato: '+e.message);await refresh().catch(()=>{});}
+ const value=edit.value;edit.timer=null;edit.sending=true;renderThermostat(latestThermo);
+ try{const result=await api('/api/thermostat',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({setpoint:value})});if(edit.version===version)thermoEdit=null;await refresh();return {...result,value};}
+ catch(e){if(edit.version===version)thermoEdit=null;show('Termóstato: '+e.message);await refresh().catch(()=>{});if(throwOnError)throw e;return {queued:false,error:e.message};}
  finally{edit.sending=false;if(thermoEdit===edit&&edit.version!==version&&!edit.timer)edit.timer=setTimeout(()=>sendThermo(edit.version),5000);}
 }
 let latestThermo=null;
@@ -346,8 +353,89 @@ async function refresh(){if(busy)return;try{
  for(const item of s.inputs||[]){if(!item.enabled)continue;const tile=document.createElement('div');tile.className='card';tile.textContent=item.name+' · '+(item.active?'Ativo':'Inativo')+' · GPIO '+item.gpio;$('inputStates').append(tile);}
  $('roms').textContent=s.roms.join(', ')||'Nenhuma; configura o GPIO e reinicia';
  $('hardwareRoms').textContent=$('roms').textContent;
- const log=s.telegrams.join('\n')||'Ainda não foram recebidos telegramas';$('telegrams').textContent=log;$('knxConsole').textContent=log;
+ const log=s.telegrams.join('\n')||'Ainda não foram recebidos telegramas';$('telegrams').textContent=log;$('knxConsole').textContent=log;return s;
  }catch(e){$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
 }
-(async()=>{try{await refresh();try{await refreshHeat();}catch(e){$('heating').textContent='Mapa do coletor indisponível: '+e.message;}if(initialSettings)await openSettings();setInterval(updateClock,1000);setInterval(()=>{refresh();if(!busy)refreshHeat().catch(e=>{if(heatingPlan){heatingPlan.armed=false;heatingPlan.pumpState='desconhecido';heatingPlan.circuits.forEach(c=>c.state='desconhecido');renderHeatStatus();}$('pumpState').dataset.state='unknown';$('pumpStatus').textContent='Sem ligação';$('pumpDetail').textContent='Estados indisponíveis';$('armHeat').disabled=true;});},3000);}catch(e){show(e.message);}})();
+let webMcpController=null;
+function webMcpSchema(properties,required=Object.keys(properties)){return {type:'object',properties,required,additionalProperties:false};}
+function webMcpTool(name,title,description,inputSchema,execute,readOnly=false){return {name,title,description,inputSchema,execute,annotations:{readOnlyHint:readOnly,destructiveHint:false,untrustedContentHint:true}};}
+async function webMcpFetchStatus(){const status=await api('/api/status');if(status.csrf)csrf=status.csrf;return status;}
+async function webMcpFetchHeating(){const state=await api('/api/heating/status');heatingPlan=state;renderHeatStatus();return state;}
+async function webMcpEnsureCsrf(){if(csrf)return;const status=await webMcpFetchStatus();if(!status.csrf)throw Error('O dispositivo não forneceu token CSRF; atualiza a página e tenta novamente.');}
+function webMcpRoomIndex(state,name){
+ if(typeof name!=='string'||!name.trim())throw Error('Indica o nome da divisão.');
+ const wanted=name.trim().toLocaleLowerCase('pt-PT');const matches=state.zones.map((room,index)=>({room,index})).filter(x=>String(x.room).trim().toLocaleLowerCase('pt-PT')===wanted);
+ if(!matches.length)throw Error('Não encontrei essa divisão na configuração atual.');
+ if(matches.length>1)throw Error('Há mais do que uma divisão com esse nome; renomeia-as para poderes escolher sem ambiguidade.');
+ return matches[0];
+}
+function webMcpRoomSummary(state,index){const room=(state.rooms||[])[index]||{};return {name:state.zones[index],mode:room.mode===0?'automatic':room.mode===1?'off':room.mode===2?'on':'unknown',temperatureC:room.temperatureKnown&&room.temperatureFresh?room.value:null,setpointC:room.setpointKnown?room.target:null,demand:!!room.demand,setpointPending:!!room.setpointPending,setpointFailed:!!room.setpointFailed,fault:room.autoFault?room.autoFaultReason||'Controlo automático indisponível':null};}
+function webMcpHeatingSummary(state){return {controlEnabled:!!state.outputsEnabled,armed:!!state.armed,canArm:!!state.canArm,fault:!!state.fault,controlMessage:state.controlMessage||'',pump:{state:state.pumpState||'desconhecido',phase:state.pumpPhase||'idle',remainingMs:Number(state.pumpRemainingMs)||0,thermalPause:!!state.thermalPause,thermalReason:state.thermalReason||'none'},rooms:(state.zones||[]).map((_,i)=>webMcpRoomSummary(state,i)),circuits:(state.circuits||[]).map((c,i)=>({circuit:i+1,position:c.position>=0?c.position+1:null,room:c.zone>=0?state.zones[c.zone]||null:null,state:c.state||'desconhecido',valveOpeningRemainingMs:Number(c.openingRemainingMs)||0}))};}
+function webMcpDelay(ms,signal){return new Promise((resolve,reject)=>{
+ if(signal&&signal.aborted){reject(new DOMException('Operação cancelada antes do envio.','AbortError'));return;}
+ const timer=setTimeout(done,ms);function cleanup(){if(signal)signal.removeEventListener('abort',cancel);}
+ function done(){cleanup();resolve();}function cancel(){clearTimeout(timer);cleanup();reject(new DOMException('Operação cancelada antes do envio.','AbortError'));}
+ if(signal)signal.addEventListener('abort',cancel,{once:true});
+});}
+async function webMcpMutation(path,payload,refreshTarget='device'){
+ if(busy)throw Error('Há outra operação ativa na página; espera que termine e tenta novamente.');
+ await webMcpEnsureCsrf();if(busy)throw Error('Há outra operação ativa na página; espera que termine e tenta novamente.');
+ busy=true;let response;
+ try{response=await api(path,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)});}
+ finally{busy=false;}
+ if(refreshTarget==='heating'){await refreshHeat();return {response,state:heatingPlan};}
+ const state=await refresh();return {response,state};
+}
+async function webMcpSetRoomSetpoint(input,signal){
+ const target=input?.temperatureC;if(typeof target!=='number'||!Number.isFinite(target)||target<5||target>30||Math.abs(target*2-Math.round(target*2))>0.001)throw Error('O setpoint tem de estar entre 5 e 30 °C, em passos de 0,5 °C.');
+ const state=await webMcpFetchHeating();if(!state.outputsEnabled)throw Error('O controlo de piso radiante está desativado ou em modo termóstato.');
+ const {room,index}=webMcpRoomIndex(state,input.room);const config=(state.rooms||[])[index]||{};
+ if(!config.hasSetpoint)throw Error('Esta divisão não tem endereço KNX de setpoint configurado.');
+ const staged=stageRoomSetpoint(index,target,false);
+ try{
+  await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');
+  if(setpointEdits.get(index)?.version!==staged.version)throw Error('O setpoint foi alterado durante a espera; não enviei o valor antigo.');
+  const sent=await sendSetpoint(index,staged.version,true);if(!sent||!sent.queued)throw Error(sent?.error||'O setpoint não foi colocado na fila KNX.');
+  const updated=heatingPlan||await webMcpFetchHeating();return {accepted:true,room,valueC:target,knxQueued:true,feedbackPending:!!(updated.rooms||[])[index]?.setpointPending,message:'Setpoint guardado e colocado na fila KNX; a confirmação do barramento pode ainda estar pendente.'};
+ }catch(error){const edit=setpointEdits.get(index);if(edit===staged.edit&&edit.version===staged.version&&!edit.sending){clearTimeout(edit.timer);setpointEdits.delete(index);renderHeatStatus();}throw error;}
+}
+async function webMcpSetThermostatSetpoint(input,signal){
+ const target=input?.temperatureC;if(typeof target!=='number'||!Number.isFinite(target)||target<5||target>30||Math.abs(target*2-Math.round(target*2))>0.001)throw Error('O setpoint tem de estar entre 5 e 30 °C, em passos de 0,5 °C.');
+ const status=await webMcpFetchStatus();latestThermo=status.thermostat;currentThermostatMode=!!status.thermostatMode;renderThermostat(latestThermo);
+ if(!currentThermostatMode)throw Error('O modo termóstato local não está ativo.');
+ const staged=stageThermoSetpoint(target,false);
+ try{await webMcpDelay(5000,signal);if(signal&&signal.aborted)throw new DOMException('Operação cancelada antes do envio.','AbortError');if(thermoEdit?.version!==staged.version)throw Error('O setpoint foi alterado durante a espera; não enviei o valor antigo.');
+  const sent=await sendThermo(staged.version,true);if(!sent||(!sent.queued&&!sent.ok))throw Error(sent?.error||'O setpoint do termóstato não foi colocado na fila KNX.');return {accepted:true,valueC:target,knxQueued:true,message:'Setpoint guardado e colocado na fila KNX; a confirmação do barramento pode ainda estar pendente.'};
+ }catch(error){if(thermoEdit===staged.edit&&thermoEdit.version===staged.version&&!thermoEdit.sending){clearTimeout(thermoEdit.timer);thermoEdit=null;renderThermostat(latestThermo);}throw error;}
+}
+async function registerWebMcpTools(){
+ const context=document.modelContext;if(!context||typeof context.registerTool!=='function'){const status=$('webMcpStatus');if(status)status.textContent=window.isSecureContext===false?'WebMCP requer uma origem segura HTTPS; este endereço HTTP não pode expor as ferramentas.':'WebMCP não está ativo neste navegador; ativa o suporte WebMCP numa versão compatível do Chromium.';return false;}if(webMcpController)return true;
+ const controller=new AbortController();webMcpController=controller;
+ const tools=[
+  webMcpTool('get_device_status','Consultar estado do dispositivo','Lê o estado atual dos sensores, KNX, relés e entradas locais. Não inclui passwords nem dados de sessão.',webMcpSchema({}),async()=>{const s=await webMcpFetchStatus();return {name:s.name,firmware:s.firmware,ip:s.ip,knx:s.knx,individualAddress:s.individual,uptimeSeconds:Math.floor((Number(s.uptimeMs)||0)/1000),sensors:(s.channels||[]).map(c=>({name:c.name,valid:!!c.valid,value:c.valid?c.value:null,unit:c.unit})),relays:(s.relays||[]).flatMap((r,i)=>r.enabled?[{name:r.name,configuredIndex:i+1,on:!!r.on,feedbackPending:!!r.feedbackPending}]:[]),inputs:(s.inputs||[]).filter(i=>i.enabled).map(i=>({name:i.name,active:!!i.active})),thermostatMode:!!s.thermostatMode,thermostat:s.thermostatMode?s.thermostat:null};},true),
+  webMcpTool('get_heating_status','Consultar estado do aquecimento','Lê o estado confirmado da bomba, das divisões e dos circuitos do coletor.',webMcpSchema({}),async()=>webMcpHeatingSummary(await webMcpFetchHeating()),true),
+  webMcpTool('get_recent_knx_telegrams','Consultar telegramas KNX recentes','Lê os telegramas que a página recebeu recentemente do barramento KNX.',webMcpSchema({}),async()=>{const s=await webMcpFetchStatus();return {knx:s.knx,telegrams:(s.telegrams||[]).slice(-20),lastEvent:s.lastEvent||''};},true),
+  webMcpTool('set_heating_control','Ativar ou parar o controlo de piso radiante','Ativa o controlador quando as saídas estão seguras ou pede a paragem e devolve os estados KNX atualizados.',webMcpSchema({action:{type:'string',enum:['start','stop'],description:'Ativa o controlo ou pede a paragem do aquecimento.'}}),async({action})=>{
+   if(!['start','stop'].includes(action))throw Error('Ação de controlo inválida.');const h=await webMcpFetchHeating();if(!h.outputsEnabled)throw Error('O controlo de piso radiante está desativado ou em modo termóstato.');
+   if(action==='start'&&h.armed)return {...webMcpHeatingSummary(h),accepted:true,message:'O controlo já estava ativo.'};if(action==='start'&&!h.canArm)throw Error(h.controlMessage||'As saídas ainda não estão confirmadas desligadas.');
+   const {response,state}=await webMcpMutation('/api/heating/control',{action:action==='start'?'arm':'stop'},'heating');return {...webMcpHeatingSummary(state),accepted:!!response.ok,requestedAction:action,message:action==='stop'?'Paragem pedida; verifica os feedbacks OFF dos atuadores.':'Controlo ativado.'};
+  }),
+  webMcpTool('set_room_heating_mode','Alterar modo de uma divisão','Define uma divisão como automática, ligada manualmente ou desligada manualmente. O controlo do aquecimento tem de estar ativo.',webMcpSchema({room:{type:'string',description:'Nome da divisão tal como aparece no painel.'},mode:{type:'string',enum:['automatic','on','off'],description:'Modo de controlo pretendido.'}}),async({room,mode})=>{
+   const h=await webMcpFetchHeating();if(!h.outputsEnabled||!h.armed)throw Error('Ativa primeiro o controlo de piso radiante.');if(!['automatic','on','off'].includes(mode))throw Error('Modo de divisão inválido.');const found=webMcpRoomIndex(h,room);const commandMode=mode==='automatic'?0:mode==='off'?1:2;
+   const {response,state}=await webMcpMutation('/api/heating/control',{action:'room',index:found.index,mode:commandMode},'heating');return {accepted:!!response.ok,room:found.room,requestedMode:mode,state:webMcpRoomSummary(state,found.index),message:'Pedido aplicado; o estado dos circuitos depende do feedback KNX.'};
+  }),
+  webMcpTool('set_room_setpoint','Alterar setpoint de uma divisão','Atualiza e guarda o setpoint da divisão. O envio ao KNX só acontece após cinco segundos sem alterações.',webMcpSchema({room:{type:'string',description:'Nome da divisão tal como aparece no painel.'},temperatureC:{type:'number',description:'Temperatura pretendida em graus Celsius.'}}),async(input,{signal}={})=>webMcpSetRoomSetpoint(input,signal)),
+  webMcpTool('set_configured_relay','Comandar um relé configurado','Liga ou desliga um dos relés locais configurados e devolve o estado e o feedback atuais.',webMcpSchema({relay:{type:'integer',minimum:1,maximum:4,description:'Número do relé apresentado na configuração, de 1 a 4.'},on:{type:'boolean',description:'true para ligar; false para desligar.'}}),async({relay,on})=>{
+   if(!Number.isInteger(relay)||relay<1||relay>4||typeof on!=='boolean')throw Error('Indica um relé de 1 a 4 e o estado pretendido.');const s=await webMcpFetchStatus();if(!s.relays?.[relay-1]?.enabled)throw Error('Esse relé não está configurado.');const {response,state}=await webMcpMutation('/api/relay',{index:relay-1,on},'device');const current=state?.relays?.[relay-1];return {accepted:!!response.applied,relay,name:current?.name||s.relays[relay-1].name,requestedOn:on,reportedOn:!!current?.on,feedbackPending:!!current?.feedbackPending,message:current?.feedbackPending?'Comando aplicado; aguarda confirmação KNX.':'Estado atualizado.'};
+  }),
+  webMcpTool('set_local_thermostat_power','Ligar ou desligar o termóstato local','Altera o funcionamento do termóstato local baseado no BME280 e atualiza o pedido KNX.',webMcpSchema({on:{type:'boolean',description:'true para ligar; false para desligar.'}}),async({on})=>{
+   if(typeof on!=='boolean')throw Error('Indica se o termóstato deve ficar ligado.');const s=await webMcpFetchStatus();if(!s.thermostatMode)throw Error('O modo termóstato local não está ativo.');const {response,state}=await webMcpMutation('/api/thermostat',{on},'device');return {accepted:!!response.ok,thermostat:state?.thermostat||null,message:'Pedido enviado; a confirmação do atuador KNX pode ainda estar pendente.'};
+  }),
+  webMcpTool('set_local_thermostat_setpoint','Alterar setpoint do termóstato local','Atualiza e guarda o setpoint do termóstato local. O envio ao KNX só acontece após cinco segundos sem alterações.',webMcpSchema({temperatureC:{type:'number',description:'Temperatura pretendida em graus Celsius.'}}),async(input,{signal}={})=>webMcpSetThermostatSetpoint(input,signal))
+ ];
+ try{for(const tool of tools)await context.registerTool(tool,{signal:controller.signal});const status=$('webMcpStatus');if(status)status.textContent='WebMCP ativo: '+tools.length+' ferramentas registadas neste navegador.';return true;}
+ catch(error){controller.abort();webMcpController=null;const status=$('webMcpStatus');if(status)status.textContent='Falha ao registar as ferramentas WebMCP: '+error.message;console.warn('WebMCP: não foi possível registar as ferramentas',error);return false;}
+}
+if(typeof window!=='undefined'&&window.addEventListener)window.addEventListener('pagehide',()=>{if(webMcpController){webMcpController.abort();webMcpController=null;}},{once:true});
+(async()=>{try{await refresh();await registerWebMcpTools();try{await refreshHeat();}catch(e){$('heating').textContent='Mapa do coletor indisponível: '+e.message;}if(initialSettings)await openSettings();setInterval(updateClock,1000);setInterval(()=>{refresh();if(!busy)refreshHeat().catch(e=>{if(heatingPlan){heatingPlan.armed=false;heatingPlan.pumpState='desconhecido';heatingPlan.circuits.forEach(c=>c.state='desconhecido');renderHeatStatus();}$('pumpState').dataset.state='unknown';$('pumpStatus').textContent='Sem ligação';$('pumpDetail').textContent='Estados indisponíveis';$('armHeat').disabled=true;});},3000);}catch(e){show(e.message);}})();
 </script></html>)HTML";
