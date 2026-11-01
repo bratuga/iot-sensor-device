@@ -38,7 +38,10 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.13-knx-validation";
+constexpr char FirmwareVersion[] = "0.3.14-history-warnings";
+bool historyTimeSynced(time_t value) {
+  return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
+}
 constexpr uint16_t LocalPort = 41000;
 constexpr uint32_t SessionCooldown = 130000;
 WebServer web(80);
@@ -150,7 +153,7 @@ bool saveHistory(const history::Data &data){
 }
 void historyLoop(uint32_t now){
   if(!historyStorage||!sensor::elapsed(now,bootAt,2000)||!sensor::elapsed(now,historyRetry,60000))return;
-  time_t t=time(nullptr);if(t<history::MinTime||t>4102444800LL)return;
+  time_t t=time(nullptr);if(!historyTimeSynced(t))return;
   history::Record r{};r.time=uint32_t(t);const unsigned indexes[]={3,4,0,1};bool any=false;
   for(unsigned i=0;i<4;i++){bool ok=fresh(indexes[i],now);r.value[i]=history::encode(readings[indexes[i]].value,ok);any|=r.value[i]!=history::Missing;}
   r.value[4]=heat.output[heating::Runtime::Pump].known ? (heat.output[heating::Runtime::Pump].reported ? 1 : 0) : history::Missing;
@@ -1104,15 +1107,16 @@ void setupWeb() {
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
   });
   web.on("/api/history", HTTP_GET, [] {
-    DynamicJsonDocument d(32768);time_t now=time(nullptr);bool synced=now>=history::MinTime&&now<=4102444800LL;
+    DynamicJsonDocument d(32768);time_t now=time(nullptr);bool synced=historyTimeSynced(now);
     d["synced"]=synced;d["storage"]=historyStorage;JsonArray rows=d.createNestedArray("records");
     if(synced)for(unsigned i=0;i<historyData.count;i++){const auto &r=historyData.records[i];if(!history::visible(r.time,uint32_t(now)))continue;
       JsonArray a=rows.createNestedArray();a.add(r.time);for(unsigned j=0;j<5;++j){int16_t v=r.value[j];if(v==history::Missing)a.add(nullptr);else if(j==4)a.add(v);else a.add(float(v)/100.0f);}}
     if(d.overflowed()){error(500,"Historico demasiado grande");return;}sendJson(d);
   });
   web.on("/api/history/time", HTTP_POST, [] {
-    if(!publicMutation())return;time_t current=time(nullptr);
-    if(current>=history::MinTime&&current<=4102444800LL){web.send(200,"application/json","{\"synced\":true}");return;}
+    if(!publicMutation())return;
+    time_t current=time(nullptr);
+    if(historyTimeSynced(current)){web.send(200,"application/json","{\"synced\":true}");return;}
     StaticJsonDocument<128> d;if(deserializeJson(d,web.arg("plain"))||!d["time"].is<uint32_t>()){error(400,"Hora invalida");return;}
     uint32_t t=d["time"];if(t<history::MinTime||t>4102444800UL){error(400,"Hora invalida");return;}
     timeval tv{time_t(t),0};if(settimeofday(&tv,nullptr)!=0){error(500,"Falha ao definir hora");return;}
