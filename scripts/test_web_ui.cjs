@@ -27,6 +27,14 @@ w.eval('heatingPlan.control.rooms[0].mode=1;renderHeatStatus();');assert.equal(d
 assert(!d.getElementById('rooms').textContent.includes('Circuito'));console.log('PASS room tiles omit circuit assignments');
 w.eval('heatingPlan.controlMessage="A aguardar feedback OFF da bomba em 3/5/10";Object.assign(heatingPlan.control.rooms[0],{temperatureKnown:true,temperatureFresh:false,value:21.5,setpointKnown:true,target:23});renderHeatStatus();');
 assert(d.getElementById('rooms').textContent.includes('21,5'));assert(d.querySelector('#rooms .current').title.includes('Última leitura guardada'));assert(d.getElementById('rooms').textContent.includes('23,0 °C'));assert(d.getElementById('heatMessage').textContent.includes('3/5/10'));
+assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'43%');
+assert.equal(d.querySelector('#rooms .setpoint-value').textContent,'23,0 °C');
+assert.equal(d.querySelector('#rooms .status').title,d.querySelector('#rooms .status').textContent);
+assert.equal(d.querySelector('.history-nav .nav-actions #viewSettings').getAttribute('aria-label'),'Configurações');
+w.eval('heatingPlan.control.rooms[0].target=16;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'0%');
+w.eval('heatingPlan.control.rooms[0].target=30;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'86%');
+console.log('PASS navigation actions and setpoint ring scale 16–30 °C');
+w.eval('heatingPlan.control.rooms[0].target=23;renderHeatStatus()');
 w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();');assert(d.getElementById('rooms').textContent.includes('23,0 °C'));console.log('PASS independent setpoint/temperature and stale cache tooltip');
 
 d.getElementById('hz0external').checked=true;d.getElementById('hz0bmeFallback').checked=true;d.getElementById('hz0margin').value='0.4';w.eval('captureHeating();renderHeating(false)');assert(d.getElementById('hz0external').checked);assert(d.getElementById('hz0bmeFallback').checked);assert.equal(d.getElementById('hz0margin').value,'0.4');console.log('PASS room control and BME fallback survive redraw');
