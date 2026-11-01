@@ -371,10 +371,11 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
       r.feedbackGroup = o["feedbackGroup"].as<String>();
       if (r.name.length() < 1 || r.name.length() > 32 ||
           (r.gpio != -1 && !pin(r.gpio))) return bad("Nome ou GPIO do rele invalido");
+      if (!r.enabled) continue;
+      r.commandGroup.trim(); r.feedbackGroup.trim();
       if ((r.commandGroup.length() && !sensor::parseGroup(r.commandGroup.c_str(), commands[i])) ||
           (r.feedbackGroup.length() && !sensor::parseGroup(r.feedbackGroup.c_str(), feedbacks[i])))
-        return bad("Grupo KNX do rele invalido");
-      if (!r.enabled) continue;
+        return bad("Grupo KNX do rele " + String(i + 1) + " invalido");
       if (!pin(r.gpio) || !commands[i] || !feedbacks[i])
         return bad("Rele ativo exige GPIO e grupos de comando e feedback");
       if (commands[i] == feedbacks[i]) return bad("Comando e feedback devem ser diferentes");
@@ -395,11 +396,13 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
     }
   }
   uint16_t reserved[3] = {};
-  const String thermoGroups[] = {c.thermostatSetpointGroup, c.thermostatDemandGroup, c.thermostatFeedbackGroup};
+  String *thermoGroups[] = {&c.thermostatSetpointGroup, &c.thermostatDemandGroup, &c.thermostatFeedbackGroup};
+  const char *thermoNames[] = {"setpoint", "pedido", "feedback"};
   for (unsigned i = 0; i < 3; ++i) {
-    if (thermoGroups[i].length() && !sensor::parseGroup(thermoGroups[i].c_str(), reserved[i]))
-      return bad("Grupo KNX do termostato invalido");
     if (!c.thermostatMode) continue;
+    thermoGroups[i]->trim();
+    if (thermoGroups[i]->length() && !sensor::parseGroup(thermoGroups[i]->c_str(), reserved[i]))
+      return bad("Grupo KNX do termostato (" + String(thermoNames[i]) + ") invalido: '" + *thermoGroups[i] + "'");
     if (!reserved[i]) return bad("Termostato exige setpoint, pedido e feedback KNX");
     for (unsigned j = 0; j < i; ++j)
       if (reserved[j] == reserved[i]) return bad("Grupos do termostato repetidos");
@@ -428,9 +431,10 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
       if (in.name.isEmpty() || in.name.length() > 32 ||
           (in.gpio != -1 && !inputPin(in.gpio))) return bad("Nome ou GPIO de entrada invalido");
       uint16_t g = 0;
-      if (in.group.length() && !sensor::parseGroup(in.group.c_str(), g))
-        return bad("Grupo KNX de entrada invalido");
       if (!in.enabled) continue;
+      in.group.trim();
+      if (in.group.length() && !sensor::parseGroup(in.group.c_str(), g))
+        return bad("Grupo KNX da entrada " + String(i + 1) + " invalido: '" + in.group + "'");
       if (!inputPin(in.gpio)) return bad("Entrada ativa exige GPIO");
       if ((c.bmeEnabled && (in.gpio == c.sda || in.gpio == c.scl)) ||
           (c.oledEnabled && (in.gpio == osda || in.gpio == oscl || in.gpio == c.oledReset)) ||
