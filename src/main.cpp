@@ -38,6 +38,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
+constexpr char FirmwareVersion[] = "0.3.12-config-save";
 constexpr uint16_t LocalPort = 41000;
 constexpr uint32_t SessionCooldown = 130000;
 WebServer web(80);
@@ -1401,7 +1402,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.11-webmcp";
+    d["firmware"] = FirmwareVersion;
     d["csrf"] = csrf;
     d["historyTime"] = time(nullptr)>=history::MinTime;
     d["ip"] =
@@ -1610,7 +1611,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.11-webmcp. HELP para comandos; SETUP para acesso local.");
+  Serial.printf("Sensor KNX %s. HELP para comandos; SETUP para acesso local.\n", FirmwareVersion);
 }
 void loop() {
   uint32_t now = millis();
