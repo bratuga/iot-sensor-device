@@ -332,11 +332,13 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
       return bad("Parametros do canal fora dos limites");
     ch.policy.periodMs = period;
     ch.policy.minGapMs = gap;
-    if (ch.group.length() && !sensor::parseGroup(ch.group.c_str(), groups[i]))
-      return bad("Grupo invalido: principal 0-15, intermedio 0-7, subgrupo 0-255");
     if (ch.enabled) {
+      ch.group.trim();
+      if (ch.group.length() && !sensor::parseGroup(ch.group.c_str(), groups[i]))
+        return bad("Canal de sensor " + String(i + 1) + " (" + ch.name + "): grupo KNX '" +
+                   ch.group + "' invalido; principal 0-15, intermedio 0-7, subgrupo 0-255");
       if (!groups[i])
-        return bad("Canal ativo exige grupo KNX");
+        return bad("Canal de sensor " + String(i + 1) + " (" + ch.name + ") ativo exige grupo KNX");
       if (i < 3 && !c.bmeEnabled)
         return bad("Ativar BME280 antes do canal");
       if (i >= 3 && (c.oneWire < 0 || c.rom[i - 3].isEmpty()))
