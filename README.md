@@ -7,7 +7,7 @@ valores através do KNX; não há dependência de MQTT nem de HA no firmware.
 
 ## Estado
 
-Firmware atual: **0.3.9-config-save**. O perfil de compilação é ESP32 clássico
+Firmware atual: **0.3.10-config-submit**. O perfil de compilação é ESP32 clássico
 com flash de 4 MB; não usar esta imagem num ESP32-S3. Compilar e validar o
 firmware para a revisão da placa antes de instalar.
 
