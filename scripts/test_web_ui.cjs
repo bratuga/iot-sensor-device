@@ -171,9 +171,12 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  const postsBeforeCancel=w.webCalls.filter(call=>call.path==='/api/heating/setpoint').length;const cancelled=new w.AbortController();cancelled.abort();
  await assert.rejects(()=>roomSetpoint.execute({room:'Sala',temperatureC:24}, {signal:cancelled.signal}),/cancelada/i);
  assert.equal(w.webCalls.filter(call=>call.path==='/api/heating/setpoint').length,postsBeforeCancel);
+ w.eval('busy=true');await assert.rejects(()=>roomSetpoint.execute({room:'Sala',temperatureC:24},{}),/outra operação/i);w.eval('busy=false');
+ assert.equal(w.webCalls.filter(call=>call.path==='/api/heating/setpoint').length,postsBeforeCancel);
  console.log('PASS WebMCP room setpoint waits five seconds and cancellation prevents the KNX write');
 
  w.mockStatus.thermostatMode=true;w.mockStatus.thermostat={name:'Sala',on:true,setpoint:22,temperatureValid:true,temperature:21,demand:false,pending:false,knxConnected:true};
+ w.eval('busy=true');await assert.rejects(()=>tool('set_local_thermostat_setpoint').execute({temperatureC:22.5},{}),/outra operação/i);w.eval('busy=false');
  delays.length=0;const thermostatSetpoint=await tool('set_local_thermostat_setpoint').execute({temperatureC:22.5},{});
  assert(delays.includes(5000));assert.equal(thermostatSetpoint.knxQueued,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).setpoint,22.5);
  const relayResult=await tool('set_configured_relay').execute({relay:2,on:true},{});
