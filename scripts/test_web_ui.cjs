@@ -144,4 +144,43 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  assert.equal(d.getElementById('thermoName').textContent,'Quarto');assert.equal(d.getElementById('thermoTarget').textContent,'22,0 °C');assert.equal(d.getElementById('thermoTile').dataset.demand,'true');
  assert.equal(d.getElementById('thermoPower').getAttribute('aria-pressed'),'true');
  console.log('PASS independent BME thermostat dashboard hides collector and shows confirmed KNX state');
+
+ const registered=[];d.modelContext={registerTool:async(tool,options)=>registered.push({tool,options})};
+ w.eval(`webMcpController=null;csrf='token';busy=false;currentThermostatMode=false;renderHeatStatus=()=>{};`);
+ assert.equal(await w.eval('registerWebMcpTools()'),true);
+ const tool=(name)=>registered.find(item=>item.tool.name===name)?.tool;
+ assert.equal(registered.length,9);
+ assert(registered.every(item=>item.options.signal===registered[0].options.signal));
+ assert.equal(tool('get_device_status').annotations.readOnlyHint,true);
+ assert.equal(tool('set_room_setpoint').annotations.readOnlyHint,false);
+ assert.equal(tool('set_room_setpoint').inputSchema.properties.temperatureC.type,'number');
+ assert(d.getElementById('webMcpStatus').textContent.includes('9 ferramentas registadas'));
+ console.log('PASS WebMCP tools register with typed schemas, read-only annotations and abort cleanup');
+
+ w.eval(`globalThis.webCalls=[];globalThis.mockStatus={name:'Teste',ip:'10.10.5.28',knx:'ligado',individual:'1.1.1',firmware:'teste',uptimeMs:1000,csrf:'token',thermostatMode:false,channels:[{name:'Temperatura',valid:true,value:21.5,unit:'°C'}],telegrams:['telegrama de teste'],relays:[{name:'Rele 1',enabled:false,on:false},{name:'Rele 2',enabled:true,on:false,feedbackPending:true}],inputs:[{name:'Entrada',enabled:true,active:true}]};globalThis.mockHeat={outputsEnabled:true,armed:true,canArm:true,fault:false,controlMessage:'',pumpState:'ligado',pumpPhase:'service',pumpRemainingMs:12000,thermalPause:false,thermalReason:'none',zones:['Sala'],rooms:[{hasSetpoint:true,setpointKnown:true,target:22,temperatureKnown:true,temperatureFresh:true,value:21.5,mode:0,enabled:true,demand:true,setpointPending:false}],circuits:Array.from({length:8},(_,i)=>({position:i,zone:i===0?0:-1,state:i===0?'ligado':'nao utilizado',openingRemainingMs:0}))};api=async(path,options={})=>{webCalls.push({path,options});if(path==='/api/status')return mockStatus;if(path==='/api/heating/status')return mockHeat;if(path==='/api/heating/control')return {ok:true};if(path==='/api/heating/setpoint')return {queued:true};if(path==='/api/relay')return {applied:true};if(path==='/api/thermostat')return {ok:true,queued:true};throw Error('unexpected '+path);};refreshHeat=async()=>{heatingPlan=mockHeat;return mockHeat;};refresh=async()=>{latestThermo=mockStatus.thermostat;currentThermostatMode=!!mockStatus.thermostatMode;return mockStatus;};`);
+ const deviceInfo=await tool('get_device_status').execute({},{});
+ assert.equal(deviceInfo.name,'Teste');assert.equal(deviceInfo.sensors[0].value,21.5);assert.equal(deviceInfo.relays.length,1);assert.equal(deviceInfo.relays[0].configuredIndex,2);
+ assert.deepEqual((await tool('get_recent_knx_telegrams').execute({},{})).telegrams,['telegrama de teste']);
+ const modeResult=await tool('set_room_heating_mode').execute({room:'Sala',mode:'on'},{});
+ assert.equal(modeResult.accepted,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).index,0);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).mode,2);
+ console.log('PASS WebMCP device and bus reads; room control resolves names and preserves configured relay numbers');
+
+ const originalSetTimeout=w.setTimeout;const delays=[];w.setTimeout=(callback,delay,...args)=>{delays.push(delay);return originalSetTimeout(callback,0,...args);};
+ const roomSetpoint=tool('set_room_setpoint');const roomResult=await roomSetpoint.execute({room:'Sala',temperatureC:23.5},{});
+ assert(delays.includes(5000));assert.equal(roomResult.knxQueued,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).value,23.5);
+ const postsBeforeCancel=w.webCalls.filter(call=>call.path==='/api/heating/setpoint').length;const cancelled=new w.AbortController();cancelled.abort();
+ await assert.rejects(()=>roomSetpoint.execute({room:'Sala',temperatureC:24}, {signal:cancelled.signal}),/cancelada/i);
+ assert.equal(w.webCalls.filter(call=>call.path==='/api/heating/setpoint').length,postsBeforeCancel);
+ console.log('PASS WebMCP room setpoint waits five seconds and cancellation prevents the KNX write');
+
+ w.mockStatus.thermostatMode=true;w.mockStatus.thermostat={name:'Sala',on:true,setpoint:22,temperatureValid:true,temperature:21,demand:false,pending:false,knxConnected:true};
+ delays.length=0;const thermostatSetpoint=await tool('set_local_thermostat_setpoint').execute({temperatureC:22.5},{});
+ assert(delays.includes(5000));assert.equal(thermostatSetpoint.knxQueued,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).setpoint,22.5);
+ const relayResult=await tool('set_configured_relay').execute({relay:2,on:true},{});
+ assert.equal(relayResult.accepted,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).index,1);
+ await tool('set_local_thermostat_power').execute({on:false},{});assert.equal(JSON.parse(w.webCalls.at(-1).options.body).on,false);
+ const signal=registered[0].options.signal;d.defaultView.dispatchEvent(new w.Event('pagehide'));assert.equal(signal.aborted,true);
+ delete d.modelContext;assert.equal(await w.eval('registerWebMcpTools()'),false);assert.match(d.getElementById('webMcpStatus').textContent,/HTTPS|Chromium/);
+ w.setTimeout=originalSetTimeout;
+ console.log('PASS WebMCP thermostat delay, configured relay control and tool unregister on page exit');
 })().catch(e=>{console.error(e);process.exitCode=1;});
