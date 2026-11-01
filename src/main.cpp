@@ -1401,7 +1401,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.10-config-submit";
+    d["firmware"] = "0.3.11-webmcp";
     d["csrf"] = csrf;
     d["historyTime"] = time(nullptr)>=history::MinTime;
     d["ip"] =
@@ -1610,7 +1610,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.10-config-submit. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.11-webmcp. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
