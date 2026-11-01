@@ -38,7 +38,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.14-history-warnings";
+constexpr char FirmwareVersion[] = "0.3.15-room-tiles";
 bool historyTimeSynced(time_t value) {
   return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
 }
