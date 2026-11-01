@@ -138,7 +138,7 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   }
 }
 bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
-  auto bad = [&](const char *s) {
+  auto bad = [&](const String &s) {
     err = s;
     return false;
   };
