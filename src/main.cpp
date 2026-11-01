@@ -38,7 +38,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.12-config-save";
+constexpr char FirmwareVersion[] = "0.3.13-knx-validation";
 constexpr uint16_t LocalPort = 41000;
 constexpr uint32_t SessionCooldown = 130000;
 WebServer web(80);
