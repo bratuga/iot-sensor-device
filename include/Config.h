@@ -23,6 +23,9 @@ struct InputConfig {
 struct Config {
   String name = "iot-sensor", ssid, wifiPassword, adminPassword;
   bool knxEnabled = false, bmeEnabled = false, oledEnabled = false, showDiagnostics = true;
+  bool pumpColdGuardEnabled = true, pumpReturnGuardEnabled = true;
+  float pumpColdLimitC = 30.0f, pumpReturnLimitC = 28.0f;
+  uint16_t pumpColdPauseMin = 15, pumpReturnAboveMin = 5, pumpReturnPauseMin = 15;
   bool thermostatMode = false, thermostatOn = false;
   String thermostatName = "Termostato", thermostatSetpointGroup,
          thermostatDemandGroup, thermostatFeedbackGroup;

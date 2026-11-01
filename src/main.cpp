@@ -9,6 +9,7 @@
 #include "HeatingSnapshot.h"
 #include "HeatingReadPlan.h"
 #include "Bme280Direct.h"
+#include "PumpThermalGuard.h"
 #include "ThermostatCore.h"
 #include "WebUi.h"
 // Optional private build settings. include/secrets.h is excluded by .gitignore.
@@ -55,6 +56,14 @@ bool linkWasUp = false, needCooldown = false, updating = false, updateOk = false
 uint32_t lastUploadAt = 0, lostAt = 0, lastWifiAttempt = 0, lastSample = 0, conversionAt = 0,
          lastDisplay = 0, bootAt = 0, restartAt = 0;
 bool restarting = false, firstSample = true;
+enum class ConfigSavePhase : uint8_t { Idle, Stopping, Saved, Failed };
+ConfigSavePhase configSavePhase = ConfigSavePhase::Idle;
+Config pendingConfigSave;
+bool pendingHeatingSave = false;
+String pendingHeatingBody;
+String configSaveMessage;
+uint32_t configSaveStartedAt = 0, configRestartAt = 0;
+constexpr uint32_t ConfigShutdownTimeoutMs = 90000;
 IPAddress boundIp;
 bool serialOverflow = false;
 String csrf, lastEvent = "Arranque", apName, serialLine;
@@ -67,6 +76,7 @@ constexpr unsigned MaxRooms=16;
 unsigned roomCount=0;
 String heatingZones[MaxRooms];
 heating::Runtime heat;
+heating::PumpThermalSupervisor pumpThermalGuard;
 struct HeatConfig {
  bool enabled=false;
  uint16_t command[9]={}, feedback[9]={}, enable[MaxRooms]={}, status[MaxRooms]={}, temperature[MaxRooms]={}, setpoint[MaxRooms]={};
@@ -94,6 +104,7 @@ uint32_t heatToken=1000, heatPending[9]={};
 bool heatingSafe();
 void heatingTelegram(const knxip::Telegram &t);
 void heatingLoop(uint32_t now);
+void configSaveLoop(uint32_t now);
 unsigned romCount = 0;
 constexpr unsigned MaxLogs=48;
 String logs[MaxLogs];
@@ -151,6 +162,7 @@ device::RelayState relays[4];
 struct LocalInputState { bool raw=false, active=false, dirty=false; uint32_t changedAt=0; } inputs[4];
 bool thermoDemand=false, thermoSentDemand=false, thermoReported=false, thermoFeedbackKnown=false;
 bool thermoDirty=true, thermoSetpointDirty=true, thermoPending=false, thermoFailed=false;
+bool thermoSaveOffCommandSent=false, thermoSaveOffFeedbackSeen=false;
 uint32_t thermoCommandAt=0, thermoSendAt=0, thermoSetpointAt=0;
 constexpr uint32_t ThermoDemandToken=0x700001u, ThermoSetpointToken=0x700002u;
 void thermostatLoop(uint32_t now);
@@ -234,6 +246,10 @@ void Events::onEvent(knxip::Event e, uint16_t detail) {
   if (e == knxip::Event::Connected) {
     thermoDirty = thermoSetpointDirty = true;
     thermoPending = thermoFeedbackKnown = false;
+    if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&config.thermostatMode){
+      thermoSaveOffCommandSent=false;
+      thermoSaveOffFeedbackSeen=false;
+    }
     for (auto &in : inputs) in.dirty = true;
     for(auto &pending:heatFeedbackRead)pending=false;
     heatReadSweep.start(roomCount);heatPoll=millis()-500;
@@ -266,6 +282,8 @@ void Events::onTelegram(const knxip::Telegram &t) {
     bool value;
     if (t.group==feedback && t.operation!=knxip::Operation::Read && t.asBool(value)) {
       thermoReported=value;thermoFeedbackKnown=true;
+      if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&
+         thermoSaveOffCommandSent&&!value)thermoSaveOffFeedbackSeen=true;
       if(thermoPending && value==thermoSentDemand){thermoPending=false;thermoFailed=false;}
       if(!thermoPending){thermoDirty=value!=thermoDemand;thermoFailed=false;}
     }
@@ -369,6 +387,10 @@ void thermostatLoop(uint32_t now) {
   uint16_t group;
   if(sensor::parseGroup(config.thermostatDemandGroup.c_str(),group)&&
      tunnel.writeBool(group,thermoDemand,ThermoDemandToken)==knxip::Result::Queued){
+    if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&!thermoDemand){
+      thermoSaveOffCommandSent=true;
+      thermoSaveOffFeedbackSeen=false;
+    }
     thermoSentDemand=thermoDemand;thermoPending=true;thermoCommandAt=thermoSendAt=now;
   }
 }
@@ -732,7 +754,65 @@ bool heatingSafe() {
 }
 bool thermostatSafe() {
  return !config.thermostatMode || (!config.thermostatOn && !thermoDemand &&
-         !thermoPending && (!thermoFeedbackKnown || !thermoReported));
+         !thermoPending && thermoSaveOffCommandSent && thermoSaveOffFeedbackSeen &&
+         thermoFeedbackKnown && !thermoReported);
+}
+const char *configSaveStateName() {
+  switch(configSavePhase){
+    case ConfigSavePhase::Stopping:return "stopping";
+    case ConfigSavePhase::Saved:return "saved";
+    case ConfigSavePhase::Failed:return "failed";
+    default:return "idle";
+  }
+}
+void configSaveLoop(uint32_t now) {
+  if(configSavePhase==ConfigSavePhase::Stopping){
+    const bool ready=config.thermostatMode?thermostatSafe():heatingSafe();
+    if(ready){
+      bool saved=false;
+      if(pendingHeatingSave){
+        Preferences p;
+        if(p.begin("heating",false)){
+          saved=p.putString("layout",pendingHeatingBody)==pendingHeatingBody.length();
+          p.end();
+        }
+      }else{
+        saved=saveConfig(pendingConfigSave);
+      }
+      if(!saved){
+        configSavePhase=ConfigSavePhase::Failed;
+        configSaveMessage=pendingHeatingSave?
+          "Falha ao gravar o mapa do aquecimento na memória; as saídas ficaram paradas. Tenta novamente.":
+          "Falha ao gravar a configuração na memória; as saídas ficaram paradas. Tenta novamente.";
+        Serial.println(pendingHeatingSave?"Aquecimento: falha ao gravar mapa apos confirmar OFF":"Configuracao: falha ao gravar apos confirmar OFF");
+        return;
+      }
+      pendingHeatingSave=false;
+      configSavePhase=ConfigSavePhase::Saved;
+      configSaveMessage="Feedback OFF confirmado; configuração gravada. O ESP vai reiniciar.";
+      configRestartAt=now;
+      Serial.println("Configuracao: feedback OFF confirmado, gravada e a reiniciar");
+      return;
+    }
+    if(tunnel.state()==knxip::State::Connected)
+      configSaveMessage=config.thermostatMode?
+        "A aguardar feedback OFF do atuador do termóstato antes de gravar…":
+        "A aguardar feedback OFF da bomba e dos circuitos antes de gravar…";
+    else
+      configSaveMessage="A aguardar ligação KNX para confirmar as saídas OFF…";
+    if(sensor::elapsed(now,configSaveStartedAt,ConfigShutdownTimeoutMs)){
+      configSavePhase=ConfigSavePhase::Failed;
+      configSaveMessage=tunnel.state()==knxip::State::Connected?
+        (config.thermostatMode?
+          "Tempo esgotado: não chegou feedback OFF do atuador do termóstato. A configuração não foi gravada.":
+          "Tempo esgotado: não chegou confirmação OFF da bomba ou de um circuito. A configuração não foi gravada."):
+        "Tempo esgotado sem ligação KNX; não foi possível confirmar as saídas OFF. A configuração não foi gravada.";
+      Serial.println("Configuracao: timeout a aguardar seguranca KNX; gravacao cancelada");
+    }
+    return;
+  }
+  if(configSavePhase==ConfigSavePhase::Saved&&!restarting&&sensor::elapsed(now,configRestartAt,2500))
+    scheduleRestart();
 }
 bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
  if (!d.containsKey("control")) return true; // migrate mapping-only configuration
@@ -832,6 +912,13 @@ String heatingBlockReason() {
       default:break;
     }
   }
+  if(pumpThermalGuard.paused()){
+    const uint32_t left=pumpThermalGuard.remainingMs(millis());
+    const uint32_t minutes=(left+59999UL)/60000UL;
+    if(pumpThermalGuard.reason()==heating::ThermalPauseReason::ColdSupply)
+      return "Protecao termica: agua de entrada abaixo de "+String(config.pumpColdLimitC,1)+" °C. Retoma em "+String(minutes)+" min.";
+    return "Protecao termica: agua de retorno acima de "+String(config.pumpReturnLimitC,1)+" °C durante "+String(config.pumpReturnAboveMin)+" min. Retoma em "+String(minutes)+" min.";
+  }
   if(!heat.confirmed(8,false,millis())&&!heat.armed)
     return "A aguardar feedback OFF da bomba em "+groupText(hc.feedback[8])+" (comando "+groupText(hc.command[8])+").";
   if(!heat.armed)for(unsigned i=0;i<8;++i)if(heat.active(i)&&!heat.confirmed(i,false,millis()))
@@ -871,11 +958,33 @@ void heatingLoop(uint32_t now) {
   heating::defaultSetpoint(hz[i],setpointReceived[i],now,bootAt);
   effective[i]=heating::selectTemperature(hz[i],hc.bmeFallback[i],readings[0].value,
     config.bmeEnabled&&fresh(0,now),readings[0].at,now,bootAt);
-  zoneDemand[i]=heating::roomDemand(heat.armed,zoneMode[i],zoneEnabled[i],hc.external[i],effective[i],now,zoneDemand[i]);
  }
- for(unsigned i=0;i<8;++i)heat.demand[i]=heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
+
+ heating::ThermalGuardOptions thermalOptions;
+ thermalOptions.coldSupplyEnabled=config.pumpColdGuardEnabled;
+ thermalOptions.coldSupplyLimitC=config.pumpColdLimitC;
+ thermalOptions.coldSupplyPauseMs=uint32_t(config.pumpColdPauseMin)*60000UL;
+ thermalOptions.hotReturnEnabled=config.pumpReturnGuardEnabled;
+ thermalOptions.hotReturnLimitC=config.pumpReturnLimitC;
+ thermalOptions.hotReturnAboveMs=uint32_t(config.pumpReturnAboveMin)*60000UL;
+ thermalOptions.hotReturnPauseMs=uint32_t(config.pumpReturnPauseMin)*60000UL;
+ const bool wasThermallyPaused=pumpThermalGuard.paused();
+ const bool thermalPause=pumpThermalGuard.update(heat,now,
+   config.oneWire>=0&&fresh(3,now),readings[3].value,
+   config.oneWire>=0&&fresh(4,now),readings[4].value,thermalOptions);
+ if(thermalPause&&!wasThermallyPaused){
+   const char *reason=pumpThermalGuard.reason()==heating::ThermalPauseReason::ColdSupply?"agua de entrada fria":"agua de retorno quente";
+   Serial.println(String("Protecao termica: ")+reason+"; circuito e bomba parados");
+ }
+ if(!thermalPause&&wasThermallyPaused&&heat.armed)
+   Serial.println("Protecao termica: pausa concluida; controlo retomado");
+ const bool controlDemandAllowed=heat.armed||(thermalPause&&pumpThermalGuard.resumeArmed());
+ for(unsigned i=0;i<roomCount;++i)
+  zoneDemand[i]=heating::roomDemand(controlDemandAllowed,zoneMode[i],zoneEnabled[i],hc.external[i],effective[i],now,zoneDemand[i]);
+ for(unsigned i=0;i<8;++i)heat.demand[i]=!thermalPause&&heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
+ if(thermalPause)heat.external.fill(false); // A thermal pause closes every collector path.
  heat.openMs=hc.openMs;heat.serviceMs=hc.serviceMs;heat.pauseMs=hc.pauseMs;heat.tick(now,link);
- if(!heat.armed)for(unsigned i=0;i<roomCount;++i)zoneDemand[i]=false;
+ if(!heat.armed&&!thermalPause)for(unsigned i=0;i<roomCount;++i)zoneDemand[i]=false;
  static bool hadFault=false;
  if(heat.fault&&!hadFault)Serial.println("Aquecimento: "+heatingBlockReason());
  hadFault=heat.fault;
@@ -913,7 +1022,8 @@ void heatingLoop(uint32_t now) {
 }
 void heatingJson(JsonDocument &d, bool includeConfig=true) {
   d["outputsEnabled"] = hc.enabled&&!config.thermostatMode;
-  d["canArm"]=hc.enabled&&!config.thermostatMode&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
+  d["canArm"]=hc.enabled&&!config.thermostatMode&&!pumpThermalGuard.paused()&&
+    configSavePhase!=ConfigSavePhase::Stopping&&configSavePhase!=ConfigSavePhase::Saved&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
   d["armed"]=heat.armed;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
   JsonObject control;
   if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;control["serviceMs"]=hc.serviceMs;control["pauseMs"]=hc.pauseMs;
@@ -924,9 +1034,15 @@ void heatingJson(JsonDocument &d, bool includeConfig=true) {
   auto state=[](unsigned i)->const char*{const auto&a=heat.output[i];if(!hc.enabled)return "desativado";if(!heat.active(i))return "nao utilizado";if(a.sent&&!heat.confirmed(i,a.command,millis())&&!(i<8&&heat.external[i]))return heating::age(millis(),a.changed)>=heat.timeoutMs?"sem confirmação":"pendente";if(!a.known)return "desconhecido";return a.reported?"ligado":"desligado";};
   d["pumpState"] = state(8);
   const auto phase=heat.pumpPhase(millis());
-  d["pumpPhase"]=phase==heating::Runtime::PumpPhase::Waiting?"waiting":phase==heating::Runtime::PumpPhase::Service?"service":phase==heating::Runtime::PumpPhase::Pause?"pause":"idle";
-  d["pumpRemainingMs"]=heat.phaseRemaining(millis());
-  d["pumpPhaseTotalMs"]=phase==heating::Runtime::PumpPhase::Waiting?heat.openMs:phase==heating::Runtime::PumpPhase::Service?heat.serviceMs:phase==heating::Runtime::PumpPhase::Pause?heat.pauseMs:0;
+  const uint32_t now=millis();
+  const auto thermalReason=pumpThermalGuard.reason();
+  const bool thermalPause=pumpThermalGuard.paused();
+  d["thermalPause"]=thermalPause;
+  d["thermalReason"]=thermalReason==heating::ThermalPauseReason::ColdSupply?"cold-supply":thermalReason==heating::ThermalPauseReason::HotReturn?"hot-return":"none";
+  d["pumpPhase"]=thermalPause?(thermalReason==heating::ThermalPauseReason::ColdSupply?"thermal-cold":"thermal-return"):
+    phase==heating::Runtime::PumpPhase::Waiting?"waiting":phase==heating::Runtime::PumpPhase::Service?"service":phase==heating::Runtime::PumpPhase::Pause?"pause":"idle";
+  d["pumpRemainingMs"]=thermalPause?pumpThermalGuard.remainingMs(now):heat.phaseRemaining(now);
+  d["pumpPhaseTotalMs"]=thermalPause?pumpThermalGuard.durationMs():phase==heating::Runtime::PumpPhase::Waiting?heat.openMs:phase==heating::Runtime::PumpPhase::Service?heat.serviceMs:phase==heating::Runtime::PumpPhase::Pause?heat.pauseMs:0;
   JsonArray zones = d.createNestedArray("zones");
   for (unsigned i=0;i<roomCount;++i) zones.add(heatingZones[i]);
   JsonArray circuits = d.createNestedArray("circuits");
@@ -1012,7 +1128,7 @@ void setupWeb() {
   web.on("/api/heating/layout", HTTP_POST, [] {
     if (!mutation()) return;
     if (config.thermostatMode) { error(409,"Muda para o modo de piso radiante antes de configurar o coletor");return; }
-    if (updating || restarting) { error(409, "Dispositivo ocupado"); return; }
+    if (updating || restarting || configSavePhase==ConfigSavePhase::Stopping || configSavePhase==ConfigSavePhase::Saved) { error(409, "Dispositivo ocupado"); return; }
     String body = web.arg("plain");
     if (body.length() > 16384) { error(413, "Mapa demasiado grande"); return; }
     DynamicJsonDocument d(16384);
@@ -1020,43 +1136,42 @@ void setupWeb() {
     heating::RuntimeLayout next;
     String names[MaxRooms];
     HeatConfig control;
-    if (!heatingSafe()) { error(409,"Para o aquecimento e aguarda feedback da bomba antes de configurar"); return; }
     for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda confirmacao do setpoint KNX antes de alterar as divisoes");return;}
     if (!parseHeating(d, next, names)||!parseHeatConfig(d,control)) {
       error(400, "Divisao, circuito ou posicao repetida/invalida"); return;
     }
-    Preferences p;
-    if (!p.begin("heating", false)) { error(500, "NVS indisponivel"); return; }
-    bool saved = p.putString("layout", body) == body.length();
-    p.end();
-    if (!saved) { error(500, "Nao foi possivel guardar o mapa"); return; }
-    saveHeatingValues(true);
-    hc=control;roomCount=d["zones"].size();heat=heating::Runtime{};heatReadSweep.start(roomCount);
-    for(auto &pending:heatFeedbackRead)pending=false;
-    for(unsigned i=0;i<MaxRooms;++i){hz[i]={};zoneEnabled[i]=zoneDemand[i]=false;zoneMode[i]=0;setpointReceived[i]=false;setpointPending[i]=0;setpointFailed[i]=false;effective[i]={};roomStatusDirty[i]=true;roomReadCommand[i]=roomReadStatus[i]=false;}
-    heatingLayout = next;
-    heat.configure(heatingLayout);
-    for (unsigned i = 0; i < roomCount; ++i) heatingZones[i] = names[i];
-    loadHeatingValues();
-    DynamicJsonDocument response(16384);
-    heatingJson(response);
-    sendJson(response);
+    pendingHeatingBody=body;
+    pendingHeatingSave=true;
+    configSavePhase=ConfigSavePhase::Stopping;
+    configSaveStartedAt=millis();
+    configSaveMessage="A parar a bomba e os circuitos; a aguardar feedback OFF antes de gravar o mapa…";
+    pumpThermalGuard.cancelResume();
+    heat.stop(configSaveStartedAt);
+    StaticJsonDocument<256> response;
+    response["pending"]=true;
+    response["state"]="stopping";
+    response["message"]=configSaveMessage;
+    sendJson(response,202);
   });
   web.on("/api/restart", HTTP_POST, [] {
     if(!publicMutation())return;
-    if(updating||restarting){error(409,"Dispositivo ocupado");return;}
+    if(updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Dispositivo ocupado");return;}
     if(!heatingSafe()||!thermostatSafe()){error(409,"Para o aquecimento e aguarda feedback OFF antes de reiniciar");return;}
     web.send(200,"application/json","{\"restarting\":true}");scheduleRestart();
   });
   web.on("/api/heating/control",HTTP_POST,[]{
     if(!publicMutation())return;
-    if(config.thermostatMode||!hc.enabled||updating||restarting){error(409,"Aquecimento indisponivel neste modo");return;}
+    if(config.thermostatMode||!hc.enabled||updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Aquecimento indisponivel neste modo");return;}
     StaticJsonDocument<256>d;
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
     String action=d["action"]|"";
     if(action=="refresh"){heatReadSweep.start(roomCount);heatPoll=millis()-500;}
-    else if(action=="stop")heat.stop(millis());
-    else if(action=="arm"){if(!heat.arm(millis())){error(409,heatingBlockReason());return;}for(unsigned i=0;i<roomCount;++i){roomStatusDirty[i]=true;}}
+    else if(action=="stop"){pumpThermalGuard.cancelResume();heat.stop(millis());}
+    else if(action=="arm"){
+      if(pumpThermalGuard.paused()){error(409,heatingBlockReason());return;}
+      if(!heat.arm(millis())){error(409,heatingBlockReason());return;}
+      for(unsigned i=0;i<roomCount;++i){roomStatusDirty[i]=true;}
+    }
     else if(action=="room"&&heat.armed&&d["index"].is<unsigned>()&&d["mode"].is<int>()){
       unsigned i=d["index"];int mode=d["mode"];if(i>=roomCount||mode<0||mode>2){error(400,"Divisao/modo invalido");return;}zoneMode[i]=mode;zoneEnabled[i]=mode!=1;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;
     }else{error(409,"Ativa primeiro o controlo");return;}
@@ -1113,10 +1228,20 @@ void setupWeb() {
     d["csrf"] = csrf;
     sendJson(d);
   });
+  web.on("/api/config/save-status",HTTP_GET,[]{
+    if(!auth())return;
+    StaticJsonDocument<512>d;
+    d["state"]=configSaveStateName();
+    d["message"]=configSaveMessage;
+    if(configSavePhase==ConfigSavePhase::Stopping)
+      d["remainingMs"]=sensor::elapsed(millis(),configSaveStartedAt,ConfigShutdownTimeoutMs)?0:
+        ConfigShutdownTimeoutMs-uint32_t(millis()-configSaveStartedAt);
+    sendJson(d);
+  });
   web.on("/api/config", HTTP_POST, [] {
     if (!mutation())
       return;
-    if (updating || restarting) {
+    if (updating || restarting || configSavePhase==ConfigSavePhase::Stopping || configSavePhase==ConfigSavePhase::Saved) {
       error(409, "Dispositivo ocupado");
       return;
     }
@@ -1137,10 +1262,6 @@ void setupWeb() {
       return;
     }
     for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda confirmacao do setpoint KNX");return;}
-    if(!next.thermostatMode && !thermostatSafe()){
-      error(409,"Desliga o termostato e aguarda feedback OFF antes de mudar de modo");return;
-    }
-    if (!heatingSafe()) { error(409,"Para o aquecimento antes de reiniciar"); return; }
     if(hc.enabled&&!next.thermostatMode){
       uint16_t groups[82];unsigned n=0;
       for(unsigned i=0;i<9;++i){groups[n++]=hc.command[i];groups[n++]=hc.feedback[i];}
@@ -1151,12 +1272,27 @@ void setupWeb() {
         for(const auto&in:next.input)if(in.enabled&&sensor::parseGroup(in.group.c_str(),g)&&g==groups[i]){error(400,"Grupo de input reservado pelo aquecimento");return;}
       }
     }
-    if (!saveConfig(next)) {
-      error(500, "Nao foi possivel guardar");
-      return;
+    pendingHeatingSave=false;
+      thermoSaveOffCommandSent=thermoSaveOffFeedbackSeen=false;
+    pendingConfigSave=next;
+    configSavePhase=ConfigSavePhase::Stopping;
+    configSaveStartedAt=millis();
+    configSaveMessage="A parar o aquecimento e a aguardar feedback OFF…";
+    pumpThermalGuard.cancelResume();
+    if(config.thermostatMode){
+      config.thermostatOn=false;
+      thermoDirty=true;
+      thermoFailed=false;
+      thermoSaveOffCommandSent=false;
+      thermoSaveOffFeedbackSeen=false;
+    }else{
+      heat.stop(configSaveStartedAt);
     }
-    web.send(200, "application/json", "{\"saved\":true,\"reboot\":true}");
-    scheduleRestart();
+    StaticJsonDocument<256> response;
+    response["pending"]=true;
+    response["state"]="stopping";
+    response["message"]=configSaveMessage;
+    sendJson(response,202);
   });
   web.on("/api/thermostat",HTTP_POST,[]{
     if(!publicMutation())return;
@@ -1262,7 +1398,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
-    d["firmware"] = "0.3.7-room-modes";
+    d["firmware"] = "0.3.8-thermal-guard";
     d["csrf"] = csrf;
     d["historyTime"] = time(nullptr)>=history::MinTime;
     d["ip"] =
@@ -1471,7 +1607,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.println("Sensor KNX 0.3.7-room-modes. HELP para comandos; SETUP para acesso local.");
+  Serial.println("Sensor KNX 0.3.8-thermal-guard. HELP para comandos; SETUP para acesso local.");
 }
 void loop() {
   uint32_t now = millis();
@@ -1495,6 +1631,7 @@ void loop() {
     publish(millis());
     display(millis());
   }
+  if(!updating&&!restarting)configSaveLoop(millis());
   pollTunnel(millis());
   if (restarting &&
       (tunnel.state() == knxip::State::Stopped || sensor::elapsed(millis(), restartAt, 11000)) &&

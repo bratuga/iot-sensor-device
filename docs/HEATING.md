@@ -1,6 +1,6 @@
 # Aquecimento por divisões e coletor KNX
 
-## Configurações 0.3.2
+## Configurações 0.3.8
 
 As configurações têm quatro separadores: **Funcionalidades** (escolha do modo,
 divisões e associações, sensores, relés e entradas), **KNX** (apenas os canais
@@ -10,10 +10,20 @@ Guardar as configurações gerais reinicia o ESP; o mapa do coletor tem um botã
 de gravação separado. Os campos ocultos ao trocar de separador mantêm o que foi
 digitado até guardar ou sair.
 
-Em **Funcionalidades → Controlo de piso radiante**, a bomba tem «Tempo de
-serviço» (900000 ms = 15 minutos) e «Pausa de serviço» (300000 ms = 5 minutos).
-Ambos aceitam 1 minuto a 24 horas. Configurações anteriores recebem os valores
-predefinidos ao serem carregadas, sem apagar o mapa KNX.
+Em **Funcionalidades → Controlo de piso radiante**, os ciclos da bomba são
+configurados em minutos: «Tempo de serviço» (15 por defeito) e «Pausa de serviço»
+(5 por defeito), ambos de 1 minuto a 24 horas. Os tempos gerais de sensores,
+publicação, abertura de válvulas e validade KNX são mostrados em segundos; o
+firmware converte-os para milissegundos ao guardar.
+
+O mesmo painel inclui as proteções térmicas. Se a água de entrada (sonda 1)
+ficar abaixo de 30 °C enquanto a bomba funciona, o ESP pede OFF à bomba e aos
+circuitos e pausa 15 minutos. Se o retorno (sonda 2) ficar acima de 28 °C por
+5 minutos, também pede OFF e pausa 15 minutos. Limites, tempo de permanência do
+retorno e duração de cada pausa são configuráveis. Os sensores têm de estar
+configurados e a leitura tem de ser recente; sem leitura válida a proteção não
+atua. Depois da pausa, o controlo só retoma após a confirmação OFF de todas as
+saídas utilizadas. Uma falha de feedback mantém o sistema parado.
 
 O modo **Termóstato de divisão** é exclusivo do controlo do coletor. Exige
 BME280 ativo, KNX ligado e publicação da temperatura BME no canal 1 DPT 9.001.
@@ -117,9 +127,12 @@ bloqueiam o controlo e pedem OFF da bomba; os percursos existentes são mantidos
 até receber feedback OFF. Uma rede indisponível não permite garantir a execução
 do comando remoto: configure também o comportamento de falha nos atuadores.
 
-Guardar associações, alterar a configuração principal, reiniciar pela consola ou
-atualizar por OTA requer aquecimento parado e feedback OFF dos canais configurados.
-Usar «Parar aquecimento» e aguardar antes dessas operações.
+Ao guardar a configuração principal ou o mapa do coletor, o ESP pára o
+aquecimento, aguarda feedback OFF da bomba e das válvulas utilizadas, grava e
+reinicia. Se o feedback não chegar no prazo, cancela a gravação e informa o
+erro. Alterar o gateway KNX também usa a ligação atual para confirmar OFF antes
+de gravar o novo endereço e reiniciar. A configuração em modo termóstato segue a
+mesma regra e exige feedback OFF do atuador.
 
 ## Persistência e implementação
 

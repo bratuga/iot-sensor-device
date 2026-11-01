@@ -82,6 +82,13 @@ void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["bmeEnabled"] = c.bmeEnabled;
   d["oledEnabled"] = c.oledEnabled;
   d["showDiagnostics"] = c.showDiagnostics;
+  d["pumpColdGuardEnabled"] = c.pumpColdGuardEnabled;
+  d["pumpColdLimitC"] = c.pumpColdLimitC;
+  d["pumpColdPauseMin"] = c.pumpColdPauseMin;
+  d["pumpReturnGuardEnabled"] = c.pumpReturnGuardEnabled;
+  d["pumpReturnLimitC"] = c.pumpReturnLimitC;
+  d["pumpReturnAboveMin"] = c.pumpReturnAboveMin;
+  d["pumpReturnPauseMin"] = c.pumpReturnPauseMin;
   d["thermostatMode"] = c.thermostatMode;
   d["thermostatOn"] = c.thermostatOn;
   d["thermostatName"] = c.thermostatName;
@@ -182,6 +189,36 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
   if (d.containsKey("showDiagnostics") && !d["showDiagnostics"].is<bool>())
     return bad("Opcao de diagnostico invalida");
   c.showDiagnostics = d["showDiagnostics"] | true;
+  const char *thermalFlags[] = {"pumpColdGuardEnabled", "pumpReturnGuardEnabled"};
+  for (auto k : thermalFlags)
+    if (d.containsKey(k) && !d[k].is<bool>())
+      return bad("Opcao de protecao termica invalida");
+  if (d.containsKey("pumpColdLimitC") && !d["pumpColdLimitC"].is<float>() && !d["pumpColdLimitC"].is<int>())
+    return bad("Limite de agua fria invalido");
+  if (d.containsKey("pumpReturnLimitC") && !d["pumpReturnLimitC"].is<float>() && !d["pumpReturnLimitC"].is<int>())
+    return bad("Limite da agua de retorno invalido");
+  const char *thermalMinutes[] = {"pumpColdPauseMin", "pumpReturnAboveMin", "pumpReturnPauseMin"};
+  for (auto k : thermalMinutes)
+    if (d.containsKey(k) && !d[k].is<int>())
+      return bad("Duracao de protecao termica invalida");
+  const int coldPauseMin = d["pumpColdPauseMin"] | int(c.pumpColdPauseMin);
+  const int returnAboveMin = d["pumpReturnAboveMin"] | int(c.pumpReturnAboveMin);
+  const int returnPauseMin = d["pumpReturnPauseMin"] | int(c.pumpReturnPauseMin);
+  const float coldLimitC = d["pumpColdLimitC"] | c.pumpColdLimitC;
+  const float returnLimitC = d["pumpReturnLimitC"] | c.pumpReturnLimitC;
+  if (!std::isfinite(coldLimitC) || coldLimitC < 5 || coldLimitC > 60 ||
+      !std::isfinite(returnLimitC) || returnLimitC < 5 || returnLimitC > 60 ||
+      coldPauseMin < 1 || coldPauseMin > 240 ||
+      returnAboveMin < 1 || returnAboveMin > 180 ||
+      returnPauseMin < 1 || returnPauseMin > 240)
+    return bad("Limites ou tempos de protecao termica fora dos limites");
+  c.pumpColdGuardEnabled = d["pumpColdGuardEnabled"] | c.pumpColdGuardEnabled;
+  c.pumpColdLimitC = coldLimitC;
+  c.pumpColdPauseMin = uint16_t(coldPauseMin);
+  c.pumpReturnGuardEnabled = d["pumpReturnGuardEnabled"] | c.pumpReturnGuardEnabled;
+  c.pumpReturnLimitC = returnLimitC;
+  c.pumpReturnAboveMin = uint16_t(returnAboveMin);
+  c.pumpReturnPauseMin = uint16_t(returnPauseMin);
   if ((d.containsKey("thermostatMode") && !d["thermostatMode"].is<bool>()) ||
       (d.containsKey("thermostatOn") && !d["thermostatOn"].is<bool>()))
     return bad("Modo de termostato invalido");
