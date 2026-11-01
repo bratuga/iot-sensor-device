@@ -50,6 +50,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 </div></div>
 <div id="tab-knx" class="tab-panel" role="tabpanel" hidden>
 <section><h2>Ligação KNX</h2><div class="grid" id="knx"></div></section>
+<section><h2>Diagnóstico da configuração KNX</h2><p>Verifica os endereços dos canais ativos antes de guardar. Não envia telegramas nem altera a configuração.</p><button type="button" id="validateKnx">Validar endereços KNX</button><pre id="knxValidation" role="status" aria-live="polite"></pre></section>
 <section><h2>Sensores · envio</h2><p>Mostram-se os canais selecionados em Funcionalidades.</p><div id="channels"></div></section>
 <section id="heatKnxSection"><h2>Piso radiante · receção e comandos</h2><p>Temperatura e setpoint recebidos; pedido, comandos e feedback separados por divisão/circuito.</p><div id="zoneKnxFields" class="plan-fields"></div><h3>Saídas KNX · circuitos e bomba</h3><div id="circuitKnxFields" class="plan-fields"></div></section>
 <section id="thermostatKnxSection" hidden><h2>Termóstato · grupos KNX</h2><div id="thermostatKnx"></div></section>
@@ -95,6 +96,19 @@ let currentThermostatMode=false;
 function selectTab(name){for(const b of document.querySelectorAll('.settings-tabs [role="tab"]')){const selected=b.dataset.tab===name;b.setAttribute('aria-selected',String(selected));$(b.getAttribute('aria-controls')).hidden=!selected;}}
 for(const b of document.querySelectorAll('.settings-tabs [role="tab"]'))b.onclick=()=>selectTab(b.dataset.tab);
 function visibility(){if(!cfg)return;const mode=$('profileMode').value==='thermostat';$('collectorSettings').hidden=mode;$('thermostatSettings').hidden=!mode;$('heatKnxSection').hidden=mode;$('thermostatKnxSection').hidden=!mode;for(let i=0;i<5;i++)$('ch'+i).parentElement.hidden=!$('channelEnabled'+i).checked;for(let i=0;i<4;i++){$('relayK'+i).hidden=!$('r'+i+'_enabled').checked;$('inputK'+i).hidden=!$('in'+i+'_enabled').checked;}}
+function validateKnxFields(){
+ const problems=[],valid=s=>{const m=s.trim().match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);return !!m&&+m[1]<=15&&+m[2]<=7&&+m[3]<=255&&!(+m[1]===0&&+m[2]===0&&+m[3]===0)};
+ const check=(id,label,required)=>{const el=$(id),v=el?.value.trim()||'';if((required&&!v)||(v&&!valid(v)))problems.push(label+': '+(v?'"'+v+'" inválido':'grupo obrigatório'));};
+ for(let i=0;i<5;i++)if($('channelEnabled'+i)?.checked)check(i+'_group','Sensor '+(i+1),true);
+ if($('profileMode')?.value==='thermostat')for(const [id,label]of [['thermostatSetpointGroup','Termóstato · setpoint'],['thermostatDemandGroup','Termóstato · pedido'],['thermostatFeedbackGroup','Termóstato · feedback']])check(id,label,true);
+ for(let i=0;i<4;i++){
+  if($('r'+i+'_enabled')?.checked){check('r'+i+'_commandGroup','Relé '+(i+1)+' · comando',true);check('r'+i+'_feedbackGroup','Relé '+(i+1)+' · feedback',true);}
+  if($('in'+i+'_enabled')?.checked)check('in'+i+'_group','Entrada '+(i+1),false);
+ }
+ $('knxValidation').textContent=problems.length?problems.join('\n'):'Endereços KNX dos canais ativos válidos. As restantes regras são verificadas ao guardar.';
+ return problems;
+}
+$('validateKnx').onclick=()=>{selectTab('knx');validateKnxFields();};
 
 function dashboard(){view('dashboard');}
 async function openSettings(){view('settings');$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();selectTab('features');$('loginPanel').hidden=true;$('privateSettings').hidden=false;}catch(e){$('loginError').textContent=e.message;}}
