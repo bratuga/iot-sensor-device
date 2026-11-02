@@ -17,8 +17,12 @@ publicação, abertura de válvulas e validade KNX são mostrados em segundos; o
 firmware converte-os para milissegundos ao guardar.
 
 O mesmo painel inclui as proteções térmicas. Se a água de entrada (sonda 1)
-ficar abaixo de 30 °C enquanto a bomba funciona, o ESP pede OFF à bomba e aos
-circuitos e pausa 15 minutos. Se o retorno (sonda 2) ficar acima de 28 °C por
+permanecer abaixo de 30 °C durante 5 minutos de funcionamento confirmado da bomba,
+o ESP pede OFF à bomba e aos circuitos e pausa 15 minutos. Cada arranque, incluindo
+as tentativas após a pausa, permite estes 5 minutos de circulação com água fria.
+Ao atingir o mínimo, o temporizador é limpo e o funcionamento continua normalmente.
+Se voltar a ficar abaixo do mínimo, começa uma nova contagem de 5 minutos.
+Se o retorno (sonda 2) ficar acima de 28 °C por
 5 minutos, também pede OFF e pausa 15 minutos. Limites, tempo de permanência do
 retorno e duração de cada pausa são configuráveis. Os sensores têm de estar
 configurados e a leitura tem de ser recente; sem leitura válida a proteção não
