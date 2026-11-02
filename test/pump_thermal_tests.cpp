@@ -24,13 +24,29 @@ int main() {
   assert(!guard.update(200,true,true,30,true,28,o));
   assert(guard.reason()==ThermalPauseReason::None);
 
-  assert(guard.update(300,true,true,29.9f,false,NAN,o));
+  assert(!guard.update(300,true,true,29.9f,false,NAN,o));
+  assert(!guard.update(300299,true,true,29.9f,false,NAN,o));
+  assert(guard.update(300300,true,true,29.9f,false,NAN,o));
   assert(guard.reason()==ThermalPauseReason::ColdSupply);
-  assert(guard.remainingMs(300)==900000);
-  assert(guard.update(450300,false,true,35,true,20,o));
-  assert(guard.remainingMs(450300)==450000);
-  assert(!guard.update(900300,false,true,35,true,20,o));
+  assert(guard.remainingMs(300300)==900000);
+  assert(guard.update(750300,false,true,35,true,20,o));
+  assert(guard.remainingMs(750300)==450000);
+  assert(!guard.update(1200300,false,true,20,true,20,o));
   assert(!guard.paused());
+  // Every retry gets a fresh five-minute circulation window, even when cold.
+  assert(!guard.update(1200400,true,true,20,false,NAN,o));
+  assert(!guard.update(1500399,true,true,20,false,NAN,o));
+  assert(guard.update(1500400,true,true,20,false,NAN,o));
+  assert(!guard.update(2400400,false,true,20,false,NAN,o));
+  assert(!guard.update(2400500,true,true,20,false,NAN,o));
+  // Reaching the limit clears the cold timer and operation continues normally.
+  assert(!guard.update(2700499,true,true,30,false,NAN,o));
+  assert(!guard.update(2700500,true,true,29,false,NAN,o));
+  assert(!guard.update(3000499,true,true,29,false,NAN,o));
+  assert(guard.update(3000500,true,true,29,false,NAN,o));
+  guard.reset();
+  assert(!guard.update(0xfffffff0u,true,true,20,false,NAN,o));
+  assert(guard.update(uint32_t(0xfffffff0u+300000u),true,true,20,false,NAN,o));
 
   guard.reset();
   assert(!guard.update(1000,true,true,35,true,28.1f,o));
@@ -65,17 +81,19 @@ int main() {
   feedback(runtime,Runtime::Pump,true,5);runtime.tick(5,true);assert(runtime.armed);
 
   PumpThermalSupervisor supervisor;
-  assert(supervisor.update(runtime,6,true,29.9f,false,NAN,o));
+  assert(!supervisor.update(runtime,6,true,29.9f,false,NAN,o));
+  assert(!supervisor.update(runtime,300005,true,29.9f,false,NAN,o));
+  assert(supervisor.update(runtime,300006,true,29.9f,false,NAN,o));
   assert(supervisor.reason()==ThermalPauseReason::ColdSupply&&supervisor.resumeArmed());
   assert(!runtime.armed&&!runtime.output[Runtime::Pump].command);
-  runtime.tick(6,true);assert(runtime.output[0].command); // Keep the path until pump OFF feedback.
-  feedback(runtime,Runtime::Pump,false,7);runtime.tick(8,true);
+  runtime.tick(300006,true);assert(runtime.output[0].command); // Keep the path until pump OFF feedback.
+  feedback(runtime,Runtime::Pump,false,300007);runtime.tick(300008,true);
   assert(!runtime.output[0].command);
-  assert(!supervisor.update(runtime,900006,true,35,true,20,o));
+  assert(!supervisor.update(runtime,1200006,true,20,true,20,o));
   assert(!runtime.armed&&supervisor.resumeArmed()); // No valve OFF feedback, so do not resume.
-  feedback(runtime,0,false,900007);runtime.tick(900008,true);
-  assert(!supervisor.update(runtime,900009,true,35,true,20,o));
+  feedback(runtime,0,false,1200007);runtime.tick(1200008,true);
+  assert(!supervisor.update(runtime,1200009,true,20,true,20,o));
   assert(runtime.armed&&!supervisor.resumeArmed());
 
-  std::cout<<"Pump thermal guard: cold limit, return dwell, feedback window, missing readings and timer wrap passed\n";
+  std::cout<<"Pump thermal guard: five-minute cold retries, warm recovery, return dwell, feedback window, missing readings and timer wrap passed\n";
 }
