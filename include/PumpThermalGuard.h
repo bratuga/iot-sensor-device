@@ -10,6 +10,7 @@ enum class ThermalPauseReason : uint8_t { None, ColdSupply, HotReturn };
 struct ThermalGuardOptions {
   bool coldSupplyEnabled = true;
   float coldSupplyLimitC = 30.0f;
+  uint32_t coldSupplyBelowMs = 300000;
   uint32_t coldSupplyPauseMs = 900000;
   bool hotReturnEnabled = true;
   float hotReturnLimitC = 28.0f;
@@ -22,14 +23,15 @@ struct ThermalGuardOptions {
 // and may re-arm only after OFF feedback has been confirmed.
 class PumpThermalGuard {
   ThermalPauseReason reason_ = ThermalPauseReason::None;
-  uint32_t pauseAt_ = 0, pauseMs_ = 0, returnAboveAt_ = 0;
-  bool timingReturn_ = false;
+  uint32_t pauseAt_ = 0, pauseMs_ = 0, returnAboveAt_ = 0, supplyBelowAt_ = 0;
+  bool timingReturn_ = false, timingSupply_ = false;
 
   void pause(ThermalPauseReason reason, uint32_t now, uint32_t duration) {
     reason_ = reason;
     pauseAt_ = now;
     pauseMs_ = duration;
     timingReturn_ = false;
+    timingSupply_ = false;
   }
 
 public:
@@ -42,18 +44,26 @@ public:
       reason_ = ThermalPauseReason::None;
       pauseAt_ = pauseMs_ = 0;
       timingReturn_ = false;
+      timingSupply_ = false;
     }
 
     if (!pumpRunning) {
       timingReturn_ = false;
+      timingSupply_ = false;
       return false;
     }
 
     if (options.coldSupplyEnabled && supplyValid && std::isfinite(supplyC) &&
         supplyC < options.coldSupplyLimitC) {
-      pause(ThermalPauseReason::ColdSupply, now, options.coldSupplyPauseMs);
-      return true;
-    }
+      if (!timingSupply_) {
+        timingSupply_ = true;
+        supplyBelowAt_ = now;
+      }
+      if (uint32_t(now - supplyBelowAt_) >= options.coldSupplyBelowMs) {
+        pause(ThermalPauseReason::ColdSupply, now, options.coldSupplyPauseMs);
+        return true;
+      }
+    } else timingSupply_ = false;
 
     if (!options.hotReturnEnabled || !returnValid || !std::isfinite(returnC)) {
       timingReturn_ = false;
@@ -77,8 +87,8 @@ public:
 
   void reset() {
     reason_ = ThermalPauseReason::None;
-    pauseAt_ = pauseMs_ = returnAboveAt_ = 0;
-    timingReturn_ = false;
+    pauseAt_ = pauseMs_ = returnAboveAt_ = supplyBelowAt_ = 0;
+    timingReturn_ = timingSupply_ = false;
   }
 
   bool paused() const { return reason_ != ThermalPauseReason::None; }
@@ -104,7 +114,8 @@ public:
               bool returnValid, float returnC,
               const ThermalGuardOptions &options) {
     const auto &pump = runtime.output[Runtime::Pump];
-    const bool pumpRunning = pump.command || (pump.known && pump.reported);
+    // Count actual circulation only after KNX feedback confirms the pump ON.
+    const bool pumpRunning = pump.known && pump.reported;
     const bool paused = guard_.update(now, pumpRunning, supplyValid, supplyC,
                                       returnValid, returnC, options);
     if (paused && !resumeArmed_ && runtime.armed) {
