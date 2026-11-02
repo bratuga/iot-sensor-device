@@ -45,7 +45,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!doctype html>
 <div class="feature-grid">
 <section id="collectorSettings" class="feature-tile"><h2>Controlo de piso radiante</h2><p>Primeiro cria as divisões e associa circuitos. Os endereços de grupo aparecem no separador KNX.</p><div id="heatSettings" class="grid"></div><fieldset><legend>Proteção térmica da bomba</legend><div id="pumpGuardSettings" class="plan-fields"></div><p class="hint">Sonda 1 mede a entrada de água quente; sonda 2 mede o retorno. A proteção só atua com uma leitura DS18B20 recente.</p></fieldset><p><button id="addRoom" type="button">Adicionar divisão</button></p><div id="zoneFields" class="plan-fields"></div><h3>Posições do coletor</h3><div id="circuitFields" class="plan-fields"></div><p><button type="button" id="saveHeating">Guardar mapa e reiniciar</button></p><small>O ESP para a bomba e os circuitos, aguarda feedback OFF, grava o mapa e reinicia.</small></section>
 <section id="thermostatSettings" class="feature-tile" hidden><h2>Termóstato de divisão</h2><p>Lê a temperatura do BME e publica temperatura, setpoint e pedido no KNX. Não comanda o coletor.</p><div id="thermostatFeature"></div><p class="hint">Configura BME e os endereços KNX antes de ativar este modo.</p></section>
-<section class="feature-tile"><h2>Sensores locais</h2><p>Seleciona os valores enviados ao KNX. Os GPIO e as ROM ficam em Hardware.</p><div id="sensorFeature"></div></section>
+<section class="feature-tile"><h2>Sensores locais</h2><p>Seleciona os valores enviados ao KNX. Preenche os endereços de grupo no separador KNX antes de guardar. Os GPIO e as ROM ficam em Hardware.</p><div id="sensorFeature"></div><button type="button" id="sensorKnxSettings">Configurar envio KNX dos sensores</button></section>
 <section class="feature-tile"><h2>Actuadores locais</h2><p>Relés independentes do coletor.</p><div id="relayFeature"></div></section>
 <section class="feature-tile"><h2>Inputs locais</h2><p>Quatro entradas digitais; publicam mudanças no KNX se tiverem grupo.</p><div id="inputFeature"></div></section>
 </div></div>
@@ -110,6 +110,7 @@ function validateKnxFields(){
  return problems;
 }
 $('validateKnx').onclick=()=>{selectTab('knx');validateKnxFields();};
+$('sensorKnxSettings').onclick=()=>{visibility();selectTab('knx');const first=Array.from({length:5},(_,i)=>i).find(i=>$('channelEnabled'+i).checked);if(first!==undefined)$((first)+'_group').focus();else show('Seleciona primeiro um sensor para enviar ao KNX.');};
 
 function dashboard(){view('dashboard');}
 async function openSettings(){view('settings');$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();selectTab('features');$('loginPanel').hidden=true;$('privateSettings').hidden=false;}catch(e){$('loginError').textContent=e.message;}}
@@ -285,6 +286,7 @@ function render(){
  }
  $('pumpGuardSettings').textContent='';for(const [key,label,type,step]of pumpGuardFields)field('pumpGuardSettings',key,label,cfg[key],type,step);
  $('profileMode').value=cfg.thermostatMode?'thermostat':'collector';$('profileMode').onchange=visibility;
+ $('sensorFeature').textContent='';
  field('sensorFeature','bmeEnabled','Ativar BME280',cfg.bmeEnabled,'checkbox');
  for(let i=0;i<2;i++)field('hardware','rom'+i,'ROM da sonda '+(i+1),cfg.rom[i]);
  $('channels').textContent='';cfg.channels.forEach((c,i)=>{
@@ -293,7 +295,7 @@ function render(){
   const g=document.createElement('div');g.id='ch'+i;g.className='grid';f.append(g);for(const [key,label,type,step]of cs)field(g.id,i+'_'+key,label,durationForUi(key,c[key]),type,step);
  });
 }
-$('settings').onsubmit=async e=>{e.preventDefault();if(busy)return;if(setpointEdits.size||thermoEdit){show('Aguarda 5 segundos pelo envio do setpoint antes de guardar.');return;}busy=true;try{
+$('settings').onsubmit=async e=>{e.preventDefault();if(busy)return;if(setpointEdits.size||thermoEdit){show('Aguarda 5 segundos pelo envio do setpoint antes de guardar.');return;}const knxProblems=validateKnxFields();if(knxProblems.length){visibility();selectTab('knx');show(knxProblems.join('; '));return;}busy=true;try{
  const next=JSON.parse(JSON.stringify(cfg));
  for(const list of [gs,hs,ks,tsFeature,tsKnx])for(const [k,,t]of list)next[k]=durationForApi(k,value(k,t));
  for(const [k,,t]of pumpGuardFields)next[k]=value(k,t);
