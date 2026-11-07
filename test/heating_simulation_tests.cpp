@@ -63,10 +63,10 @@ int main(int argc,char **argv){
   ++cases;if(!wanted)break;
  }
  assert(cases==6561);
- // Manual demand remains active beyond 30 minutes; valve stays commanded while pump cycles.
+ // Manual demand survives multiple timed closures and reopenings.
  {Sim s(1);s.r.openMs=1000;s.boot();ZoneInput z;unsigned mode=2;
   for(uint32_t t=3010;t<=3600000;t+=100){s.r.demand[0]=roomDemand(s.r.armed,mode,true,false,z,t,s.r.demand[0]);s.step(t);assert(!s.r.fault);}
-  assert(s.r.demand[0]&&s.physical[0]);mode=1;s.r.demand[0]=roomDemand(s.r.armed,mode,false,false,z,s.now,true);s.run(s.now+5000);assert(!s.physical[8]&&!s.physical[0]);}
+  assert(s.r.demand[0]&&s.writes[0]>4&&s.writes[8]>4);mode=1;s.r.demand[0]=roomDemand(s.r.armed,mode,false,false,z,s.now,true);s.run(s.now+5000);assert(!s.physical[8]&&!s.physical[0]);}
  // Real capture prefix: spare C1 never replies; WC C4 turns ON around 28 s.
  assert(argc==2);std::ifstream f(argv[1]);assert(f);std::vector<Event> recorded;
  unsigned t,i,v;while(f>>t>>i>>v)recorded.push_back({t,i,v!=0,false,0});assert(recorded.size()>20);
@@ -112,15 +112,22 @@ int main(int argc,char **argv){
   for(uint32_t t=6010;t<=7200;t+=10){s.step(t);assert(s.physical[8]&&!s.r.fault);}
   s.run(8500);assert(!s.physical[3]&&s.physical[7]&&s.physical[8]&&s.writes[8]==pumpWrites);
  }
- // Bounded pump duty: OFF feedback starts the pause, valves remain open, then
- // the still-requested circuit resumes without another valve command.
+ // Timed pause closes the valve after pump OFF and reopens it before restarting.
  {Sim s(8);s.r.openMs=1000;s.r.serviceMs=2000;s.r.pauseMs=1500;s.boot();s.r.demand[3]=true;
   s.run(5000);assert(s.physical[8]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Service);
   unsigned valveWrites=s.writes[3],pumpWrites=s.writes[8];
-  s.run(6500);assert(!s.physical[8]&&s.physical[3]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Pause);
-  s.run(7600);assert(!s.physical[8]&&s.writes[8]==pumpWrites+1);
-  s.run(8300);assert(s.physical[8]&&s.writes[8]==pumpWrites+2&&s.writes[3]==valveWrites);
+  s.run(6500);assert(!s.physical[8]&&!s.physical[3]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Pause);
+  s.run(7600);assert(!s.physical[8]&&s.physical[3]&&s.writes[8]==pumpWrites+1);
+  s.run(8300);assert(s.physical[8]&&s.writes[8]==pumpWrites+2&&s.writes[3]==valveWrites+2);
   s.r.demand[3]=false;s.run(9400);assert(!s.physical[8]&&!s.physical[3]&&s.r.pumpPhase(s.now)==Runtime::PumpPhase::Idle);
+ }
+ // A short pause cannot shorten valve opening or bypass delayed pump OFF feedback.
+ {Sim s(8);s.r.openMs=1000;s.r.serviceMs=2000;s.r.pauseMs=100;s.boot();s.r.demand[3]=true;
+  s.run(5000);assert(s.physical[8]&&s.physical[3]);
+  s.drop=8;s.run(6500);assert(!s.physical[8]&&s.physical[3]);
+  s.drop=-1;s.deliver(8,false);
+  s.run(7200);assert(s.physical[3]&&!s.physical[8]&&s.writes[3]==4);
+  s.run(8100);assert(s.physical[8]&&!s.r.fault);
  }
  // An unsolicited circuit feedback is observed and can supply a ready path;
  // no fabricated local valve command is required to show or use that path.

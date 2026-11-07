@@ -49,6 +49,11 @@ struct Runtime {
   uint32_t serviceMs = 900000, pauseMs = 300000;
   uint32_t serviceAt = 0, pauseAt = 0;
   bool serviceActive = false, pauseActive = false;
+  bool pauseStarted = false, pauseCloseValves = false, pauseValvesClosed = false;
+  void clearPause() {
+    pauseActive = pauseStarted = pauseCloseValves = pauseValvesClosed = false;
+    pauseAt = 0;
+  }
   enum class PumpPhase { Idle, Waiting, Service, Pause };
   PumpPhase pumpPhase(uint32_t /*now*/) const {
     if (!armed) return PumpPhase::Idle;
@@ -59,8 +64,8 @@ struct Runtime {
     return PumpPhase::Idle;
   }
   uint32_t phaseRemaining(uint32_t now) const {
-    if (pauseActive) return !pauseAt || age(now,pauseAt)<pauseMs ?
-      (!pauseAt ? pauseMs : pauseMs-age(now,pauseAt)) : 0;
+    if (pauseActive) return !pauseStarted || age(now,pauseAt)<pauseMs ?
+      (!pauseStarted ? pauseMs : pauseMs-age(now,pauseAt)) : 0;
     if (serviceActive) return age(now,serviceAt)>=serviceMs ? 0 : serviceMs-age(now,serviceAt);
     if (pumpPhase(now)==PumpPhase::Waiting) {
       uint32_t remaining=openMs;
@@ -130,7 +135,7 @@ struct Runtime {
       a.command=on;a.sent=a.acknowledged=a.feedbackForCommand=true;
       a.changed=now;
       serviceActive=on;serviceAt=now;
-      if(!on && armed){pauseActive=true;pauseAt=now;}
+      if(!on && armed){pauseActive=pauseStarted=true;pauseAt=now;}
     }
   }
   // Feedback can precede the tunnel ACK. Keep it, but do not confirm the
@@ -148,7 +153,7 @@ struct Runtime {
   }
   void stop(uint32_t now) {
     armed = false;
-    serviceActive = pauseActive = false;serviceAt=pauseAt=0;
+    serviceActive = false;serviceAt=0;clearPause();
     demand.fill(false);
     set(Pump, false, now);
   }
@@ -170,7 +175,7 @@ struct Runtime {
     if (!canArm(now)) return false;
     fault = false; failure=Failure::None; faultOutput=-1;
     armed = true;
-    serviceActive = pauseActive = false;serviceAt=pauseAt=0;
+    serviceActive = false;serviceAt=0;clearPause();
     demand.fill(false);
     return true;
   }
@@ -207,7 +212,7 @@ struct Runtime {
       if(!active(i)) continue;
       any |= demand[i] || external[i];
     }
-    if(!any){pauseActive=false;pauseAt=0;}
+    if(!any)clearPause();
     if (output[Pump].command) {
       bool path = false;
       for (unsigned i = 0; i < 8; ++i)
@@ -222,7 +227,7 @@ struct Runtime {
       if(retained)for(unsigned i=0;i<8;++i)
         if(active(i)&&!demand[i]&&!external[i])set(i,false,now);
       if(!any || (serviceActive && age(now,serviceAt)>=serviceMs)) {
-        if(any && serviceActive) pauseActive=true;
+        if(any && serviceActive) pauseActive=pauseCloseValves=true;
         serviceActive=false;
         set(Pump,false,now);
       }
@@ -233,17 +238,29 @@ struct Runtime {
           trip(now,Failure::FeedbackTimeout,Pump);
         return;
       }
+      if (pauseActive && !pauseStarted) {
+        pauseStarted = true;
+        pauseAt = now;
+      }
+      bool holdValves = false;
+      if (pauseActive && pauseCloseValves) {
+        // Finish closing our valves before starting a new opening cycle.
+        if (!pauseValvesClosed) {
+          pauseValvesClosed = true;
+          for (unsigned i=0;i<Pump;++i)
+            if (active(i) && (!external[i] || demand[i]))
+              pauseValvesClosed &= confirmed(i,false,now);
+        }
+        const uint32_t preopenAt = pauseMs > openMs ? pauseMs - openMs : 0;
+        holdValves = !pauseValvesClosed || age(now,pauseAt) < preopenAt;
+      }
+      if (pauseActive && !holdValves && age(now,pauseAt)>=pauseMs) clearPause();
       for (unsigned i = 0; i < 8; ++i) {
         if(!active(i)) continue;
-        if(demand[i] || !external[i])set(i,demand[i],now);
+        if(demand[i] || !external[i])set(i,demand[i] && !holdValves,now);
         // Finish OFF transitions too, before allowing the pump to restart.
         if(demand[i] || external[i]) ready &= pathReady(i,now);
         else ready &= confirmed(i,false,now);
-      }
-      if(pauseActive){
-        if(!confirmed(Pump,false,now))return;
-        if(pauseAt==0)pauseAt=now;
-        if(age(now,pauseAt)>=pauseMs){pauseActive=false;pauseAt=0;}
       }
       if (any && ready && !pauseActive) set(Pump, true, now);
     }

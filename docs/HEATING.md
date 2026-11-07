@@ -16,6 +16,12 @@ configurados em minutos: «Tempo de serviço» (15 por defeito) e «Pausa de ser
 publicação, abertura de válvulas e validade KNX são mostrados em segundos; o
 firmware converte-os para milissegundos ao guardar.
 
+Na pausa de serviço, o coletor só desliga as suas válvulas depois de o KNX
+confirmar a bomba desligada. Reabre os circuitos ainda pedidos com a antecedência
+do tempo de abertura configurado. Se a pausa for curta ou o feedback atrasar,
+a bomba espera pela confirmação de abertura e pelo tempo completo. As válvulas
+abertas apenas por comando externo permanecem sob controlo externo.
+
 O mesmo painel inclui as proteções térmicas. Se a água de entrada (sonda 1)
 permanecer abaixo de 30 °C durante 5 minutos de funcionamento confirmado da bomba,
 o ESP pede OFF à bomba e aos circuitos e pausa 15 minutos. Cada arranque, incluindo
