@@ -1,3 +1,5 @@
+#include "OrbitLog.h"
+#include <DNSServer.h>
 #include "Config.h"
 #include "ConfigJournal.h"
 #include "History.h"
@@ -38,7 +40,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.18-pause-valves";
+constexpr char FirmwareVersion[] = "0.3.18-orbit.1";
 bool historyTimeSynced(time_t value) {
   return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
 }
@@ -137,7 +139,7 @@ bool readHistoryFile(unsigned slot, history::Data &out, uint32_t &seq) {
   seq=h.sequence;return true;
 }
 void loadHistory(){
-  historyStorage=SPIFFS.begin(false); if(!historyStorage){Serial.println("Historico: armazenamento indisponivel");return;}
+  historyStorage=SPIFFS.begin(false); if(!historyStorage){orbitSerial().println("Historico: armazenamento indisponivel");return;}
   history::Data a{},b{};uint32_t x=0,y=0;bool av=readHistoryFile(0,a,x),bv=readHistoryFile(1,b,y);
   if(av||bv){unsigned slot=configjournal::newest(av,x,bv,y);historyData=slot?b:a;historySeq=slot?y:x;historySlot=int(slot);}
 }
@@ -159,7 +161,7 @@ void historyLoop(uint32_t now){
   r.value[4]=heat.output[heating::Runtime::Pump].known ? (heat.output[heating::Runtime::Pump].reported ? 1 : 0) : history::Missing;
   if(!any)return;
   history::Data next=historyData;if(!history::add(next,r))return;
-  historyRetry=now;if(saveHistory(next))historyData=next;else Serial.println("Historico: falha ao guardar");
+  historyRetry=now;if(saveHistory(next))historyData=next;else orbitSerial().println("Historico: falha ao guardar");
 }
 
 device::RelayState relays[4];
@@ -189,7 +191,7 @@ void logTelegram(const String &s) {
   logNext = (logNext + 1) % MaxLogs;
   if (logCount < MaxLogs)
     ++logCount;
-  Serial.println(s);
+  orbitSerial().println(s);
 }
 bool fresh(unsigned i, uint32_t now) {
   return readings[i].valid && !sensor::elapsed(now, readings[i].at, config.sampleMs * 3 + 1000);
@@ -262,7 +264,7 @@ void Events::onEvent(knxip::Event e, uint16_t detail) {
     for (auto &r : readings)
       r.publication.reconnect();
   }
-  Serial.println(lastEvent);
+  orbitSerial().println(lastEvent);
 }
 void Events::onTelegram(const knxip::Telegram &t) {
   String s = String(millis() / 1000) + "s " + individualText(t.source) + " > " +
@@ -306,7 +308,7 @@ void Events::onTelegram(const knxip::Telegram &t) {
         thermoSetpointDirty=false;
         if(std::fabs(config.thermostatSetpoint-target)>0.001f){
           config.thermostatSetpoint=target;
-          if(!saveConfig(config)) Serial.println("Termostato: falha ao guardar setpoint KNX");
+          if(!saveConfig(config)) orbitSerial().println("Termostato: falha ao guardar setpoint KNX");
         }
       }
     }
@@ -455,7 +457,7 @@ void initSensors() {
     delay(50);
     bmeI2cScan = scanI2c(Wire);
     delay(10);
-    Serial.println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
+    orbitSerial().println("I2C principal: SDA=" + String(config.sda) + " SCL=" + String(config.scl) +
                    " encontrados=" + bmeI2cScan);
   }
   if (config.oledEnabled && !sharedOled) {
@@ -478,7 +480,7 @@ void initSensors() {
   }
   if (config.oledEnabled && !sharedOled) {
     oledI2cScan = scanI2c(oledWire);
-    Serial.println("I2C OLED: SDA=" + String(config.oledSda) + " SCL=" + String(config.oledScl) +
+    orbitSerial().println("I2C OLED: SDA=" + String(config.oledSda) + " SCL=" + String(config.oledScl) +
                    " encontrados=" + oledI2cScan);
   } else {
     oledI2cScan = bmeI2cScan;
@@ -486,10 +488,10 @@ void initSensors() {
   if (config.bmeEnabled) {
     bmeOk = bme.begin(config.bmeAddress, Wire);
     if (!bmeOk)
-      Serial.println("BME falha: " + String(bme.lastError()) +
+      orbitSerial().println("BME falha: " + String(bme.lastError()) +
                      " reg=0x" + String(bme.lastRegister(), HEX) +
                      " | ID: " + bmeChipId(Wire, false) + " | scan: " + scanI2c(Wire));
-    Serial.println(bmeOk ? "BME280: pronto" : "BME280: inicializacao falhou");
+    orbitSerial().println(bmeOk ? "BME280: pronto" : "BME280: inicializacao falhou");
   }
   if (config.oneWire >= 0) {
     wire.reset(new OneWire(config.oneWire));
@@ -512,7 +514,7 @@ void initSensors() {
     oledOk = oled->begin(SSD1306_SWITCHCAPVCC, config.oledAddress, true, false);
     displayBus->beginTransmission(config.oledAddress);
     oledOk = (displayBus->endTransmission() == 0) && oledOk;
-    Serial.println("OLED: SDA=" + String(config.oledSda < 0 ? config.sda : config.oledSda) +
+    orbitSerial().println("OLED: SDA=" + String(config.oledSda < 0 ? config.sda : config.oledSda) +
                    " SCL=" + String(config.oledScl < 0 ? config.scl : config.oledScl) +
                    " RST=" + String(config.oledReset) +
                    " endereco=0x" + String(config.oledAddress, HEX) +
@@ -554,7 +556,7 @@ void sampleSensors(uint32_t now) {
       setReading(1, h, ok, now);
       setReading(2, p, ok, now);
       if (!ok) {
-        Serial.println("BME amostra falhou: " + String(bme.lastError()) +
+        orbitSerial().println("BME amostra falhou: " + String(bme.lastError()) +
                        " reg=0x" + String(bme.lastRegister(), HEX) +
                        " T=" + String(t) + " H=" + String(h) + " P=" + String(p));
         bmeOk = false;
@@ -582,21 +584,16 @@ void publish(uint32_t now) {
       r.publication.queued(r.value, now);
   }
 }
-const char *apPassword() {
-#ifdef LOCAL_AP_PASSWORD
-  return LOCAL_AP_PASSWORD;
-#else
-  return config.adminPassword.c_str();
-#endif
-}
+DNSServer recoveryDns;
+const char *apPassword() { return "iot-device"; }
 void openAp() {
   if (apActive)
     return;
   WiFi.mode(WIFI_AP_STA);
-  apName = "Sensor-" + WiFi.macAddress();
-  apName.replace(":", "");
+  apName = "iot-device";
   apActive = WiFi.softAP(apName.c_str(), apPassword());
-  Serial.println("AP: " + apName + " | http://192.168.4.1 | utilizador admin");
+  if(apActive)recoveryDns.start(53,"*",WiFi.softAPIP());
+  orbitSerial().println("AP: " + apName + " | http://192.168.4.1 | utilizador admin");
 }
 void network(uint32_t now) {
   bool connected = WiFi.status() == WL_CONNECTED;
@@ -610,7 +607,7 @@ void network(uint32_t now) {
   }
   if (!connected) {
     if (linkWasUp) {
-      Serial.println("Wi-Fi perdido");
+      orbitSerial().println("Wi-Fi perdido");
       if (mdns) {
         MDNS.end();
         mdns = false;
@@ -625,8 +622,9 @@ void network(uint32_t now) {
       openAp();
     return;
   }
+  if(apActive&&WiFi.softAPgetStationNum()==0){recoveryDns.stop();WiFi.softAPdisconnect(true);WiFi.mode(WIFI_STA);apActive=false;}
   if (!linkWasUp) {
-    Serial.println("IP: " + WiFi.localIP().toString());
+    orbitSerial().println("IP: " + WiFi.localIP().toString());
     linkWasUp = true;
   }
   if (!mdns) {
@@ -684,6 +682,9 @@ void display(uint32_t now) {
   if (!oledOk || !sensor::elapsed(now, lastDisplay, 2000))
     return;
   lastDisplay = now;
+  if(apActive&&!WiFi.isConnected()){
+    oled->clearDisplay();oled->setTextSize(1);oled->setCursor(0,0);oled->println("WiFi: iot-device");oled->println("Pass: iot-device");oled->println("192.168.4.1");oled->display();return;
+  }
   oled->clearDisplay();
   oled->setTextSize(1);
   oled->setCursor(0, 0);
@@ -711,7 +712,7 @@ void display(uint32_t now) {
   oled->display();
 }
 void scheduleRestart() {
-  if(!heatingSafe()){Serial.println("Para o aquecimento antes de reiniciar");return;}
+  if(!heatingSafe()){orbitSerial().println("Para o aquecimento antes de reiniciar");return;}
   saveHeatingValues(true);
   tunnel.stop(millis());
   restarting = true;
@@ -789,14 +790,14 @@ void configSaveLoop(uint32_t now) {
       if(!saved){
         configSavePhase=ConfigSavePhase::Failed;
         configSaveMessage="Falha ao gravar o mapa do aquecimento na memória; as saídas ficaram paradas. Tenta novamente.";
-        Serial.println("Aquecimento: falha ao gravar mapa apos confirmar OFF");
+        orbitSerial().println("Aquecimento: falha ao gravar mapa apos confirmar OFF");
         return;
       }
       pendingHeatingSave=false;
       configSavePhase=ConfigSavePhase::Saved;
       configSaveMessage="Feedback OFF confirmado; mapa do aquecimento gravado. O ESP vai reiniciar.";
       configRestartAt=now;
-      Serial.println("Aquecimento: feedback OFF confirmado, mapa gravado e a reiniciar");
+      orbitSerial().println("Aquecimento: feedback OFF confirmado, mapa gravado e a reiniciar");
       return;
     }
     if(tunnel.state()==knxip::State::Connected)
@@ -812,7 +813,7 @@ void configSaveLoop(uint32_t now) {
           "Tempo esgotado: não chegou feedback OFF do atuador do termóstato. A configuração não foi gravada.":
           "Tempo esgotado: não chegou confirmação OFF da bomba ou de um circuito. A configuração não foi gravada."):
         "Tempo esgotado sem ligação KNX; não foi possível confirmar as saídas OFF. A configuração não foi gravada.";
-      Serial.println("Configuracao: timeout a aguardar seguranca KNX; gravacao cancelada");
+      orbitSerial().println("Configuracao: timeout a aguardar seguranca KNX; gravacao cancelada");
     }
     return;
   }
@@ -897,7 +898,7 @@ void saveHeatingValues(bool force) {
   if(heatCacheSaveOk){heatCacheSaveOk=p.putString("values",value)==value.length();p.end();}
   heatCacheSavedAt=now;
   if(heatCacheSaveOk){heatCacheDirty=false;heatCacheUrgent=false;}
-  else Serial.println("Aquecimento: falha ao guardar ultimos valores KNX");
+  else orbitSerial().println("Aquecimento: falha ao guardar ultimos valores KNX");
 }
 String heatingBlockReason() {
   if(!hc.enabled)return "Ativa a configuracao KNX do aquecimento e guarda.";
@@ -979,10 +980,10 @@ void heatingLoop(uint32_t now) {
    config.oneWire>=0&&fresh(4,now),readings[4].value,thermalOptions);
  if(thermalPause&&!wasThermallyPaused){
    const char *reason=pumpThermalGuard.reason()==heating::ThermalPauseReason::ColdSupply?"agua de entrada fria":"agua de retorno quente";
-   Serial.println(String("Protecao termica: ")+reason+"; circuito e bomba parados");
+   orbitSerial().println(String("Protecao termica: ")+reason+"; circuito e bomba parados");
  }
  if(!thermalPause&&wasThermallyPaused&&heat.armed)
-   Serial.println("Protecao termica: pausa concluida; controlo retomado");
+   orbitSerial().println("Protecao termica: pausa concluida; controlo retomado");
  const bool controlDemandAllowed=heat.armed||(thermalPause&&pumpThermalGuard.resumeArmed());
  for(unsigned i=0;i<roomCount;++i)
   zoneDemand[i]=heating::roomDemand(controlDemandAllowed,zoneMode[i],zoneEnabled[i],hc.external[i],effective[i],now,zoneDemand[i]);
@@ -991,7 +992,7 @@ void heatingLoop(uint32_t now) {
  heat.openMs=hc.openMs;heat.serviceMs=hc.serviceMs;heat.pauseMs=hc.pauseMs;heat.tick(now,link);
  if(!heat.armed&&!thermalPause)for(unsigned i=0;i<roomCount;++i)zoneDemand[i]=false;
  static bool hadFault=false;
- if(heat.fault&&!hadFault)Serial.println("Aquecimento: "+heatingBlockReason());
+ if(heat.fault&&!hadFault)orbitSerial().println("Aquecimento: "+heatingBlockReason());
  hadFault=heat.fault;
  if(!link)return;
  for(unsigned i=0;i<roomCount;++i){
@@ -1214,17 +1215,32 @@ void setupWeb() {
     }
     const char *password=d["password"].as<const char*>();
     bool valid=strcmp(password,config.adminPassword.c_str())==0;
-#ifdef LOCAL_AP_PASSWORD
-    // Local test builds historically used this password for access. Keep it
-    // as a compatibility credential without replacing the persisted configuration.
-    if(LOCAL_AP_PASSWORD[0])valid=valid||strcmp(password,LOCAL_AP_PASSWORD)==0;
-#endif
     if(strcmp(d["username"].as<const char*>(),"admin")||!valid){
       if(++adminFailures>=5){adminBlockedUntil=now+30000;adminFailures=0;}
       error(401,"Utilizador ou palavra-passe incorretos");return;
     }
-    adminFailures=0;adminBlockedUntil=0;adminSession=randomSecret();adminLastAt=now;
+    orbitSerial().println("AUDIT: login administrador");adminFailures=0;adminBlockedUntil=0;adminSession=randomSecret();adminLastAt=now;
     StaticJsonDocument<128> response;response["session"]=adminSession;sendJson(response);
+  });
+  web.on("/config.html", HTTP_GET, []{web.send_P(200,"text/html; charset=utf-8",WEB_UI);});
+  web.on("/api/network/scan",HTTP_GET,[]{
+    if(!auth())return;
+    int count=WiFi.scanComplete();DynamicJsonDocument d(4096);
+    if(count==WIFI_SCAN_FAILED){WiFi.scanNetworks(true);d["pending"]=true;}
+    else if(count==WIFI_SCAN_RUNNING)d["pending"]=true;
+    else{d["pending"]=false;auto a=d.createNestedArray("networks");for(int i=0;i<count&&i<24;++i){auto o=a.createNestedObject();o["ssid"]=WiFi.SSID(i);o["rssi"]=WiFi.RSSI(i);}WiFi.scanDelete();}
+    sendJson(d);
+  });
+  web.on("/api/admin/logout",HTTP_POST,[]{if(!mutation())return;adminSession="";web.send(200,"application/json","{}");});
+  web.on("/api/admin/password",HTTP_POST,[]{
+    if(!mutation())return;StaticJsonDocument<256>d;
+    if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["password"].is<const char*>()){error(400,"Password invalida");return;}
+    String pass=d["password"];if(pass.length()<10||pass.length()>63){error(400,"Password: 10 a 63 caracteres");return;}
+    if(updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Dispositivo ocupado");return;}
+    Config next=config;next.adminPassword=pass;if(!saveConfig(next)){error(500,"Falha ao guardar");return;}config=next;adminSession="";orbitSerial().println("AUDIT: password de administrador alterada");web.send(200,"application/json","{}");
+  });
+  web.on("/api/diagnostics",HTTP_GET,[]{
+    if(!auth())return;DynamicJsonDocument d(16384);d["logs"]=orbitSerial().snapshot();d["version"]=FirmwareVersion;d["build"]=__DATE__ " " __TIME__;d["freeHeap"]=ESP.getFreeHeap();d["uptime"]=millis()/1000;d["sdAvailable"]=false;auto a=d.createNestedArray("telegrams");for(unsigned i=0;i<logCount;++i)a.add(logs[(logNext+MaxLogs-logCount+i)%MaxLogs]);sendJson(d);
   });
   web.on("/api/config", HTTP_GET, [] {
     if (!auth()) return;
@@ -1297,6 +1313,7 @@ void setupWeb() {
     for(unsigned i=0;i<4;++i)if(config.relay[i].enabled)setRelay(i,false);
     saveHeatingValues(true);
     config=next;
+    orbitSerial().println("AUDIT: configuracao guardada; reinicio");
     configSaveMessage="Configuração guardada; o ESP vai reiniciar e confirmar OFF no arranque.";
     configSavePhase=ConfigSavePhase::Saved;
     web.send(200,"application/json","{\"saved\":true,\"reboot\":true}");
@@ -1406,6 +1423,7 @@ void setupWeb() {
     uint32_t now = millis();
     DynamicJsonDocument d(10240);
     d["name"] = config.name;
+    d["build"] = __DATE__ " " __TIME__;
     d["firmware"] = FirmwareVersion;
     d["csrf"] = csrf;
     d["historyTime"] = time(nullptr)>=history::MinTime;
@@ -1461,8 +1479,14 @@ void setupWeb() {
     for (unsigned i = 0; i < romCount; ++i)
       roms.add(detectedRom[i]);
     JsonArray t = d.createNestedArray("telegrams");
-    for (unsigned i = 0; i < logCount; ++i)
+    if(authenticated())for (unsigned i = 0; i < logCount; ++i)
       t.add(logs[(logNext + MaxLogs - logCount + i) % MaxLogs]);
+    if(!authenticated()){
+      for(const char* key:{"individual","i2cMain","i2cOled","lastEvent","sent","acked","failed","freeHeap","bme","oled"})d.remove(key);
+      d["roms"].clear();d["showDiagnostics"]=false;
+      for(JsonObject item:d["relays"].as<JsonArray>())item.remove("gpio");
+      for(JsonObject item:d["inputs"].as<JsonArray>())item.remove("gpio");
+    }
     sendJson(d);
   });
   web.on(
@@ -1523,8 +1547,8 @@ void setupWeb() {
   web.begin();
 }
 void serialCommands() {
-  while (Serial.available()) {
-    char c = char(Serial.read());
+  while (orbitSerial().available()) {
+    char c = char(orbitSerial().read());
     if (c == '\r')
       continue;
     if (c != '\n') {
@@ -1538,19 +1562,19 @@ void serialCommands() {
     serialLine = "";
     if (serialOverflow) {
       serialOverflow = false;
-      Serial.println("Comando demasiado longo");
+      orbitSerial().println("Comando demasiado longo");
       continue;
     }
     line.trim();
     if (line == "HELP") {
-      Serial.println("STATUS | SETUP | READ a/b/c | WRITE a/b/c 0|1 | FLOAT a/b/c valor | REBOOT");
+      orbitSerial().println("STATUS | SETUP | READ a/b/c | WRITE a/b/c 0|1 | FLOAT a/b/c valor | REBOOT");
     } else if (line == "STATUS") {
-      Serial.println("IP " + WiFi.localIP().toString() + " KNX " + stateName());
+      orbitSerial().println("IP " + WiFi.localIP().toString() + " KNX " + stateName());
     } else if (line == "SETUP") {
       openAp();
-      Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      Serial.println("Password admin Web (configuracao): " + config.adminPassword);
-      Serial.println("Web: utilizador admin; login na pagina Configuracoes");
+      orbitSerial().println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
+      orbitSerial().println("Administrador: admin; password guardada nao divulgada");
+      orbitSerial().println("Web: utilizador admin; login na pagina Configuracoes");
     } else if (line == "REBOOT") {
       scheduleRestart();
     } else {
@@ -1570,24 +1594,24 @@ void serialCommands() {
             result = tunnel.write(g, b, 2, false);
         }
       }
-      Serial.println("Resultado: " + String(int(result)) +
+      orbitSerial().println("Resultado: " + String(int(result)) +
                      " (0=fila, 1=desligado, 2=fila cheia, 3=invalido)");
     }
   }
 }
 } // namespace
 void setup() {
-  Serial.begin(115200);
+  orbitSerial().begin(115200);
   bootAt = millis();
   bool configured = loadConfig(config);
-  Serial.println(configured ? "Configuracao persistida carregada" :
+  orbitSerial().println(configured ? "Configuracao persistida carregada" :
                               "Configuracao ausente ou invalida; usar valores iniciais");
   if (!configured) {
-    config.adminPassword = randomSecret();
+    config.adminPassword = "iot-device";
     if (!saveConfig(config)) {
-      Serial.println("ERRO: configuracao nao persistida");
+      orbitSerial().println("ERRO: configuracao nao persistida");
     }
-    Serial.println("Primeiro acesso: admin / " + config.adminPassword);
+    orbitSerial().println("Primeiro acesso: admin / iot-device");
   }
   // Private test defaults are only used until credentials have been saved in flash.
   // Never overwrite a user's saved Web settings on every boot.
@@ -1598,7 +1622,7 @@ void setup() {
   if (config.wifiPassword.isEmpty()) config.wifiPassword = LOCAL_WIFI_PASSWORD;
 #endif
   loadHistory();
-  configTime(0,0,"pool.ntp.org","time.google.com");
+  configTzTime(config.timezone.c_str(),config.ntpServer.c_str(),"time.cloudflare.com");
   loadHeating();
   loadHeatingValues();
   initRelays();
@@ -1607,6 +1631,7 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(config.name.c_str());
   WiFi.setAutoReconnect(true);
+  if(!config.wifiDhcp){IPAddress ip,mask,gateway,dns;ip.fromString(config.wifiIp);mask.fromString(config.wifiMask);gateway.fromString(config.wifiGateway);dns.fromString(config.wifiDns);WiFi.config(ip,gateway,mask,dns);}
   if (config.ssid.isEmpty())
     openAp();
   else {
@@ -1615,7 +1640,7 @@ void setup() {
   }
   initSensors();
   setupWeb();
-  Serial.printf("Sensor KNX %s. HELP para comandos; SETUP para acesso local.\n", FirmwareVersion);
+  orbitSerial().printf("Sensor KNX %s. HELP para comandos; SETUP para acesso local.\n", FirmwareVersion);
 }
 void loop() {
   uint32_t now = millis();
@@ -1626,6 +1651,7 @@ void loop() {
     updateOk = false;
   }
   network(now);
+  if(apActive)recoveryDns.processNextRequest();
   pollTunnel(now);
   web.handleClient();
   serialCommands();
