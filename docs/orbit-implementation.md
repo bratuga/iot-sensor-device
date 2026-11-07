@@ -15,3 +15,5 @@ Coletor e termóstatos preservados, incluindo debounce dos setpoints, confirmaç
 Validação local: compilação ESP32, testes JavaScript mínimos e suite DOM de termóstatos/coletor/KNX. GPIO e operação física aguardam ensaio autorizado.
 
 A vulnerabilidade do parser Arduino-ESP32 2.0.17 descrita na branch `review/security-2026-11-07` continua pendente de atualização da plataforma e validação de compatibilidade. A proteção dos handlers não corrige o parser.
+
+Compatibilidade: branch atualizada sobre main 300b189, incluindo o fecho/reabertura das válvulas durante a pausa temporizada da bomba. Testes nativos e testes JS/DOM passaram na CI dessa base.
