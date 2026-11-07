@@ -1,3 +1,4 @@
+#include <IPAddress.h>
 #include "Config.h"
 #include "ConfigJournal.h"
 #include <WiFi.h>
@@ -70,6 +71,7 @@ static bool inputPin(int p) { return pin(p) || p == 34 || p == 35 || p == 36 || 
 void configJson(const Config &c, JsonDocument &d, bool secrets) {
   d["schema"] = 2;
   d["name"] = c.name;
+  d["wifiDhcp"]=c.wifiDhcp;d["wifiIp"] = c.wifiIp;d["wifiMask"] = c.wifiMask;d["wifiGateway"] = c.wifiGateway;d["wifiDns"] = c.wifiDns;d["ntpServer"] = c.ntpServer;d["timezone"] = c.timezone;
   d["ssid"] = c.ssid;
   if (secrets) {
     d["wifiPassword"] = c.wifiPassword;
@@ -159,6 +161,16 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
   for (auto k : ints)
     if (!d[k].is<int>())
       return bad("Numero inteiro invalido");
+  if(d.containsKey("wifiDhcp")){if(!d["wifiDhcp"].is<bool>())return bad("DHCP invalido");c.wifiDhcp=d["wifiDhcp"];}
+  if(d.containsKey("wifiIp")){if(!d["wifiIp"].is<const char*>())return bad("Rede invalida");c.wifiIp=d["wifiIp"].as<String>();}if(d.containsKey("wifiMask")){if(!d["wifiMask"].is<const char*>())return bad("Rede invalida");c.wifiMask=d["wifiMask"].as<String>();}if(d.containsKey("wifiGateway")){if(!d["wifiGateway"].is<const char*>())return bad("Rede invalida");c.wifiGateway=d["wifiGateway"].as<String>();}if(d.containsKey("wifiDns")){if(!d["wifiDns"].is<const char*>())return bad("Rede invalida");c.wifiDns=d["wifiDns"].as<String>();}if(d.containsKey("ntpServer")){if(!d["ntpServer"].is<const char*>())return bad("Rede invalida");c.ntpServer=d["ntpServer"].as<String>();}if(d.containsKey("timezone")){if(!d["timezone"].is<const char*>())return bad("Rede invalida");c.timezone=d["timezone"].as<String>();}
+  IPAddress wifiAddress,mask,gateway,dns;
+  if(!c.wifiDhcp){
+    if(!wifiAddress.fromString(c.wifiIp)||!mask.fromString(c.wifiMask)||!gateway.fromString(c.wifiGateway)||!dns.fromString(c.wifiDns))return bad("IPv4 invalido");
+    auto num=[](IPAddress a){return uint32_t(a[0])<<24|uint32_t(a[1])<<16|uint32_t(a[2])<<8|a[3];};
+    uint32_t m=num(mask),host=num(wifiAddress)&~m;
+    if(!m||m==0xffffffffU||((~m)&((~m)+1))||!host||host==~m||(num(wifiAddress)&m)!=(num(gateway)&m))return bad("IP, mascara ou gateway invalidos");
+  }
+  if(c.ntpServer.length()<1||c.ntpServer.length()>63||c.timezone.length()<1||c.timezone.length()>96)return bad("NTP ou fuso horario invalido");
   c.name = d["name"].as<String>();
   c.ssid = d["ssid"].as<String>();
   c.gateway = d["gateway"].as<String>();
@@ -181,8 +193,8 @@ bool parseConfig(JsonDocument &d, const Config &old, Config &c, String &err) {
     c.adminPassword = ap;
   if (c.wifiPassword.length() > 63 || (c.wifiPassword.length() > 0 && c.wifiPassword.length() < 8))
     return bad("Password Wi-Fi: 8 a 63 caracteres");
-  if (c.adminPassword.length() < 12 || c.adminPassword.length() > 63)
-    return bad("Password de administracao: 12 a 63 caracteres");
+  if (c.adminPassword.length() < 10 || c.adminPassword.length() > 63)
+    return bad("Password de administracao: 10 a 63 caracteres");
   c.knxEnabled = d["knxEnabled"];
   c.bmeEnabled = d["bmeEnabled"];
   c.oledEnabled = d["oledEnabled"];

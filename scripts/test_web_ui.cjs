@@ -151,6 +151,7 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  assert.equal(d.getElementById('dashboardArea').hidden,false);
  w.gpioSave=null;d.getElementById('oneWire').value='';d.getElementById('saveOneWire').click();
  assert.equal(w.gpioSave,null);assert(d.getElementById('msg').textContent.includes('GPIO inteiro'));
+ dom.reconfigure({url:"http://sensor.local/config.html"});
  w.eval("view('settings');adminApi=async()=>{throw Error('Nao foi possivel guardar');}");
  d.getElementById('oneWire').value='27';d.getElementById('saveOneWire').click();await new Promise(resolve=>setImmediate(resolve));
  assert(!d.getElementById('settingsArea').hidden);assert(d.getElementById('msg').textContent.includes('Nao foi possivel guardar'));
@@ -161,6 +162,7 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  w.eval(`drawHistory([[${now-1200},35,25,21,55,1],[${now},34,null,21.5,54,0]])`);
  assert(d.querySelector('#historyChart circle[fill="#d694f5"]'));
  assert.equal(d.querySelectorAll('#historyChart path').length,4);
+ dom.reconfigure({url:'http://sensor.local/'});
  d.getElementById('viewHistory').click();assert(!d.getElementById('historyArea').hidden);assert(d.getElementById('dashboardArea').hidden);
  console.log('PASS history chart shows pump feedback and four series with missing readings');
 
