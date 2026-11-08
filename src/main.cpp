@@ -40,7 +40,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.18-orbit.1";
+constexpr char FirmwareVersion[] = "0.3.19-orbit.1";
 bool historyTimeSynced(time_t value) {
   return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
 }
@@ -820,7 +820,7 @@ void configSaveLoop(uint32_t now) {
   if(configSavePhase==ConfigSavePhase::Saved&&!restarting&&sensor::elapsed(now,configRestartAt,2500))
     scheduleRestart();
 }
-bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
+bool parseHeatConfig(JsonDocument &d, HeatConfig &n, String *why=nullptr) {
  if (!d.containsKey("control")) return true; // migrate mapping-only configuration
  JsonObject c=d["control"];
  if(!c["enabled"].is<bool>())return false;
@@ -847,7 +847,11 @@ bool parseHeatConfig(JsonDocument &d, HeatConfig &n) {
    if((r.containsKey("external")&&!r["external"].is<bool>())||(r.containsKey("bmeFallback")&&!r["bmeFallback"].is<bool>()))return false;
    n.external[i]=r["external"]|false;n.bmeFallback[i]=r["bmeFallback"]|false;
    n.margin[i]=r["margin"]|0.3f;
-   if(!std::isfinite(n.margin[i])||n.margin[i]<0.1f||n.margin[i]>5)return false;
+   if((r.containsKey("margin")&&!r["margin"].is<float>())||
+      !std::isfinite(n.margin[i])||n.margin[i]<0.1f||n.margin[i]>5){
+     if(why) *why="Histerese de «"+d["zones"][i].as<String>()+"»: indica um valor entre 0,1 e 5,0 °C.";
+     return false;
+   }
  }
  for(unsigned i=0;i<9;++i)if(bool(n.command[i])!=bool(n.feedback[i]))return false;
  if(n.enabled){
@@ -1144,8 +1148,13 @@ void setupWeb() {
     String names[MaxRooms];
     HeatConfig control;
     for(unsigned i=0;i<roomCount;++i)if(setpointPending[i]){error(409,"Aguarda confirmacao do setpoint KNX antes de alterar as divisoes");return;}
-    if (!parseHeating(d, next, names)||!parseHeatConfig(d,control)) {
+    if (!parseHeating(d, next, names)) {
       error(400, "Divisao, circuito ou posicao repetida/invalida"); return;
+    }
+    String why;
+    if (!parseHeatConfig(d,control,&why)) {
+      if(why.isEmpty()) why="Configuracao do aquecimento invalida. Verifica os tempos e os grupos KNX (em falta, invalidos ou repetidos).";
+      error(400,why);return;
     }
     pendingHeatingBody=body;
     pendingHeatingSave=true;

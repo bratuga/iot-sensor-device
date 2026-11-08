@@ -10,6 +10,10 @@ Guardar as configurações gerais reinicia o ESP; o mapa do coletor tem um botã
 de gravação separado. Os campos ocultos ao trocar de separador mantêm o que foi
 digitado até guardar ou sair.
 
+A margem de histerese de cada divisão é apresentada com uma casa decimal.
+Aceita vírgula ou ponto entre 0,1 e 5,0 °C. Usa **Guardar mapa e reiniciar**
+para guardar alterações à margem.
+
 Em **Funcionalidades → Controlo de piso radiante**, os ciclos da bomba são
 configurados em minutos: «Tempo de serviço» (15 por defeito) e «Pausa de serviço»
 (5 por defeito), ambos de 1 minuto a 24 horas. Os tempos gerais de sensores,
