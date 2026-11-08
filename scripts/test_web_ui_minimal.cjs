@@ -27,7 +27,7 @@ let session='';const fetch=async(path,options={})=>{calls.push({path,options});l
  else if(path==='/api/status')body={csrf:'test-csrf'};
  return {ok:status===200,status,json:async()=>body};};
 const timers=new Map();let timerId=0;
-const context=vm.createContext({document,fetch,sessionStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}},location:{hash:''},console,setInterval:()=>{},setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),Date,Number,String,Math,JSON,Error});
+const context=vm.createContext({document,fetch,sessionStorage:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}},location:{pathname:'/',hash:''},console,setInterval:()=>{},setTimeout:(fn,ms)=>{const id=++timerId;timers.set(id,{fn,ms});return id;},clearTimeout:id=>timers.delete(id),Date,Number,String,Math,JSON,Error});
 vm.runInContext(js,context);
 (async()=>{
  vm.runInContext('csrf="test-csrf";heatingPlan=globalLayout;renderHeatStatus();',Object.assign(context,{globalLayout:layout}));
@@ -43,7 +43,7 @@ vm.runInContext(js,context);
  const delayed=[...timers.values()][0].fn;timers.clear();await delayed();
  assert.equal(calls.filter(c=>c.path==='/api/heating/setpoint').length,1);assert.equal(calls.find(c=>c.path==='/api/heating/setpoint').options.body,'{"index":0,"value":24}');assert.equal(layout.control.rooms[0].target,24);assert(rooms.children[0].children[2].textContent.includes('A confirmar envio KNX'));
  vm.runInContext('render=()=>{};renderRelays=()=>{};renderInputs=()=>{};renderHeating=()=>{};visibility=()=>{};selectTab=()=>{};',context);
- await document.getElementById('viewSettings').onclick();assert.equal(document.getElementById('privateSettings').hidden,true);assert.equal(document.getElementById('loginPanel').hidden,false);
+ await vm.runInContext("location.pathname='/config.html';openSettings()",context);assert.equal(document.getElementById('privateSettings').hidden,true);assert.equal(document.getElementById('loginPanel').hidden,false);
  document.getElementById('loginUser').value='admin';document.getElementById('loginPassword').value='secret';await document.getElementById('loginForm').onsubmit({preventDefault(){}});assert.equal(document.getElementById('privateSettings').hidden,false);assert.equal(document.getElementById('loginPanel').hidden,true);
  assert(calls.filter(c=>c.path==='/api/config').every(c=>c.options.headers['X-Admin-Session']==='session-token'||!c.options.headers['X-Admin-Session']));
  vm.runInContext('latestThermo={name:"Quarto",on:true,setpoint:21,temperature:20,demand:true,temperatureValid:true,pending:false,failed:false,feedbackKnown:false};currentThermostatMode=true;renderThermostat(latestThermo);csrf="test-csrf";changeThermo(0.5);changeThermo(0.5);',context);

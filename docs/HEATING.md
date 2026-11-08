@@ -14,6 +14,12 @@ A margem de histerese de cada divisão é apresentada com uma casa decimal.
 Aceita vírgula ou ponto entre 0,1 e 5,0 °C. Usa **Guardar mapa e reiniciar**
 para guardar alterações à margem.
 
+No painel Orbit, **Ligar/desligar** guarda a intenção de controlo e
+**Atualizar** relê os valores KNX. Um reinício retoma o controlo que estava
+ligado depois de confirmar que a bomba e as válvulas estão OFF. As válvulas
+e a bomba seguem novamente a sequência normal. Se o controlo foi desligado,
+ou ficou parado por falha de segurança, não retoma automaticamente.
+
 Em **Funcionalidades → Controlo de piso radiante**, os ciclos da bomba são
 configurados em minutos: «Tempo de serviço» (15 por defeito) e «Pausa de serviço»
 (5 por defeito), ambos de 1 minuto a 24 horas. Os tempos gerais de sensores,

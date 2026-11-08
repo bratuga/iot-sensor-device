@@ -1,19 +1,61 @@
-# Uniformização Orbit — branch de revisão
+# Orbit no firmware do sensor KNX
 
-Implementação na branch `design/orbit-uniformizacao`. Não foi feito merge nem atualizado qualquer equipamento.
+A versão `0.3.20-orbit` integra na `main` o painel Orbit, o controlo do coletor
+e as alterações validadas na branch de integração. Mantém o sequenciamento KNX,
+as proteções térmicas e a gravação da histerese a uma casa decimal.
 
-- Navegação Orbit sem a linha curva lateral, paletas do firmware, configurações numa página separada e cinco grupos.
-- Dashboards e comandos operacionais públicos na LAN; configuração autenticada.
-- Primeiro administrador `admin` / `iot-device`; credenciais persistidas preservadas e password alterável.
-- ESP: recuperação `iot-device` / `iot-device`, pesquisa de redes, hostname, DHCP/IP fixo e NTP. O Moxa não tem assistente AP.
-- Testes locais não equivalem a validação elétrica, instalação ou ensaio no equipamento.
+- Painel de coletor ou termóstato, Sensores, Histórico e Ajuda são acessíveis
+  na rede local. Sensores mostra as cinco leituras locais, incluindo ida e retorno.
+- A página `/config.html` tem cinco separadores: Técnico, Diagnóstico, Hardware,
+  KNX e Configurações. Os endpoints de administração exigem sessão, e os
+  comandos protegidos exigem também o token da página.
+- Técnico inclui pesquisa de Wi-Fi, DHCP ou IPv4 fixo, NTP e fuso, backup,
+  restauro, OTA, palavra-passe e reinício. Os detalhes do diagnóstico e os
+  telegramas KNX exigem autenticação. Os logs são mantidos em RAM.
+- Mantém as opções de recuperação Wi-Fi e as credenciais já gravadas.
+- No painel, o interruptor indica o estado do controlo e o botão Atualizar
+  relê o KNX. A pressão é apresentada em kPa. Temperatura e humidade mostram
+  tendência quando há 30 minutos de leituras válidas desde o arranque.
+- O histórico mantém 48 horas, em gráficos separados e sincronizados de
+  temperatura e humidade, com cerca de 2 horas visíveis de cada vez.
+- A intenção de controlo é guardada em NVS. Ao reiniciar, o coletor só retoma
+  depois de confirmar OFF da bomba e das válvulas. Uma falha de segurança
+  cancela a retoma. A confirmação ON da bomba é registada nos logs.
 
-## Limites e decisões pendentes
+## Validação
 
-Coletor e termóstatos preservados, incluindo debounce dos setpoints, confirmação de feedback e proteções térmicas. OLED configurado mostra acesso AP quando a ligação Wi-Fi falha. Rede/NTP persistem no journal existente; migração mantém defaults DHCP e passwords anteriores. Diagnóstico e telegramas requerem autenticação. Logs em RAM; não foi inventado suporte microSD que o firmware não possui.
+A compilação `pio run -e esp32` passou: 59,3% da partição de aplicação
+e 19,9% da RAM estática. Os testes abaixo passaram nesta integração.
 
-Validação local: compilação ESP32, testes JavaScript mínimos e suite DOM de termóstatos/coletor/KNX. GPIO e operação física aguardam ensaio autorizado.
+`python3 scripts/test_host.py` verifica o controlo, as proteções, os sensores,
+a persistência e o túnel KNX. Os testes existentes da interface são
+`node scripts/test_web_ui_minimal.cjs` e `node scripts/test_web_ui.cjs`
+(o segundo usa jsdom).
 
-A vulnerabilidade do parser Arduino-ESP32 2.0.17 descrita na branch `review/security-2026-11-07` continua pendente de atualização da plataforma e validação de compatibilidade. A proteção dos handlers não corrige o parser.
+O teste `scripts/test_orbit_browser.cjs` usa o HTML embebido no firmware,
+com a API simulada, em Chromium. Percorre os ecrãs a 320, 390, 768 e 1440 px,
+verifica navegação, ausência de overflow horizontal da página, ausência de
+IDs duplicados, autenticação e os cinco separadores. Também testa termóstato,
+histerese, comandos KNX, GPIO/OLED, diagnóstico, rede, backup/restauro, OTA
+e administração. Com `playwright-core` no `NODE_PATH`, definir
+`ORBIT_CHROMIUM` para o executável do Chromium e executar
+`node scripts/test_orbit_browser.cjs`. `ORBIT_SCREENSHOTS` é opcional.
 
-Compatibilidade: branch atualizada sobre main 300b189, incluindo o fecho/reabertura das válvulas durante a pausa temporizada da bomba. Testes nativos e testes JS/DOM passaram na CI dessa base.
+A simulação Web confirma pedidos e respostas da interface, sem enviar
+telegramas, gravar na flash ou instalar firmware num ESP32 físico. Para validar a instalação física, testar num equipamento o arranque, a recuperação AP,
+as alterações de rede, a persistência, OTA e o feedback dos atuadores KNX.
+Esta integração não atualiza a plataforma Arduino-ESP32 nem resolve a
+pendência registada em `review/security-2026-11-07`.
+
+## Instalar e reverter
+
+Guardar um backup da configuração antes de atualizar. Numa cópia do repositório:
+
+```powershell
+git switch main
+git pull
+pio run -e esp32
+```
+
+A atualização OTA usa `.pio/build/esp32/firmware.bin`. Para reverter, recompilar
+e reinstalar a versão anterior do firmware a partir do respetivo commit.

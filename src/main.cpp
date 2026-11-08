@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "ConfigJournal.h"
 #include "History.h"
+#include "ReadingTrend.h"
 #include <SPIFFS.h>
 #include <time.h>
 #include <sys/time.h>
@@ -40,7 +41,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.19-orbit.1";
+constexpr char FirmwareVersion[] = "0.3.20-orbit";
 bool historyTimeSynced(time_t value) {
   return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
 }
@@ -64,7 +65,7 @@ uint32_t lastUploadAt = 0, lostAt = 0, lastWifiAttempt = 0, lastSample = 0, conv
 bool restarting = false, firstSample = true;
 enum class ConfigSavePhase : uint8_t { Idle, Stopping, Saved, Failed };
 ConfigSavePhase configSavePhase = ConfigSavePhase::Idle;
-bool pendingHeatingSave = false;
+bool pendingHeatingSave = false, pendingHeatingRestart = false;
 String pendingHeatingBody;
 String configSaveMessage;
 uint32_t configSaveStartedAt = 0, configRestartAt = 0;
@@ -81,6 +82,22 @@ constexpr unsigned MaxRooms=16;
 unsigned roomCount=0;
 String heatingZones[MaxRooms];
 heating::Runtime heat;
+sensor::ReadingTrend ambientTrend[2];
+bool heatingRequested=false, heatingResumePending=false;
+bool persistHeatingRequest(bool requested) {
+  Preferences prefs;
+  if(!prefs.begin("heating",false)) return false;
+  const bool saved=prefs.putBool("requested",requested)==1;
+  prefs.end();
+  return saved;
+}
+void loadHeatingRequest() {
+  Preferences prefs;
+  if(!prefs.begin("heating",true)) return;
+  heatingRequested=prefs.getBool("requested",false);
+  prefs.end();
+  heatingResumePending=heatingRequested;
+}
 heating::PumpThermalSupervisor pumpThermalGuard;
 struct HeatConfig {
  bool enabled=false;
@@ -683,7 +700,7 @@ void display(uint32_t now) {
     return;
   lastDisplay = now;
   if(apActive&&!WiFi.isConnected()){
-    oled->clearDisplay();oled->setTextSize(1);oled->setCursor(0,0);oled->println("WiFi: iot-device");oled->println("Pass: iot-device");oled->println("192.168.4.1");oled->display();return;
+    oled->clearDisplay();oled->setTextSize(1);oled->setCursor(0,0);oled->println(apName);oled->println("192.168.4.1");oled->println("Serial: SETUP");oled->display();return;
   }
   oled->clearDisplay();
   oled->setTextSize(1);
@@ -780,6 +797,13 @@ const char *configSaveStateName() {
 void configSaveLoop(uint32_t now) {
   if(configSavePhase==ConfigSavePhase::Stopping){
     const bool ready=config.thermostatMode?thermostatSafe():heatingSafe();
+    if(ready&&pendingHeatingRestart){
+      pendingHeatingRestart=false;
+      configSavePhase=ConfigSavePhase::Saved;
+      configSaveMessage="A reiniciar: saídas OFF confirmadas.";
+      configRestartAt=now;
+      return;
+    }
     if(ready){
       Preferences p;
       bool saved=false;
@@ -806,6 +830,7 @@ void configSaveLoop(uint32_t now) {
         "A aguardar feedback OFF da bomba e dos circuitos antes de gravar…";
     else
       configSaveMessage="A aguardar ligação KNX para confirmar as saídas OFF…";
+    if(pendingHeatingRestart)configSaveMessage="A aguardar confirmação OFF para reiniciar…";
     if(sensor::elapsed(now,configSaveStartedAt,ConfigShutdownTimeoutMs)){
       configSavePhase=ConfigSavePhase::Failed;
       configSaveMessage=tunnel.state()==knxip::State::Connected?
@@ -813,7 +838,8 @@ void configSaveLoop(uint32_t now) {
           "Tempo esgotado: não chegou feedback OFF do atuador do termóstato. A configuração não foi gravada.":
           "Tempo esgotado: não chegou confirmação OFF da bomba ou de um circuito. A configuração não foi gravada."):
         "Tempo esgotado sem ligação KNX; não foi possível confirmar as saídas OFF. A configuração não foi gravada.";
-      orbitSerial().println("Configuracao: timeout a aguardar seguranca KNX; gravacao cancelada");
+      if(pendingHeatingRestart){pendingHeatingRestart=false;configSaveMessage="Reinício cancelado: falta confirmação OFF no KNX.";}
+      orbitSerial().println(configSaveMessage);
     }
     return;
   }
@@ -994,6 +1020,22 @@ void heatingLoop(uint32_t now) {
  for(unsigned i=0;i<8;++i)heat.demand[i]=!thermalPause&&heatingLayout.zone[i]>=0&&zoneDemand[heatingLayout.zone[i]];
  if(thermalPause)heat.external.fill(false); // A thermal pause closes every collector path.
  heat.openMs=hc.openMs;heat.serviceMs=hc.serviceMs;heat.pauseMs=hc.pauseMs;heat.tick(now,link);
+ // A reboot never replays ON commands. The normal OFF/feedback sequence must
+ // finish before restoring the operator's request. A safety fault cancels it.
+ if(heat.fault&&heatingRequested&&!(heatingResumePending&&heat.failure==heating::Runtime::Failure::UnexpectedPump)){
+   heatingRequested=heatingResumePending=false;
+   if(!persistHeatingRequest(false))orbitSerial().println("Aquecimento: falha ao guardar estado OFF");
+ }
+ if(heatingResumePending&&!thermalPause&&configSavePhase!=ConfigSavePhase::Stopping&&
+    configSavePhase!=ConfigSavePhase::Saved&&heat.resumeOnBoot(heatingResumePending,now)){
+   heatingResumePending=false;
+   for(unsigned i=0;i<roomCount;++i)roomStatusDirty[i]=true;
+   orbitSerial().println("Aquecimento: controlo retomado apos confirmar saidas OFF");
+ }
+ static bool pumpOnConfirmed=false;
+ const bool confirmedOn=heat.confirmed(heating::Runtime::Pump,true,now);
+ if(confirmedOn&&!pumpOnConfirmed)orbitSerial().println("Bomba: feedback ON KNX confirmado");
+ pumpOnConfirmed=confirmedOn;
  if(!heat.armed&&!thermalPause)for(unsigned i=0;i<roomCount;++i)zoneDemand[i]=false;
  static bool hadFault=false;
  if(heat.fault&&!hadFault)orbitSerial().println("Aquecimento: "+heatingBlockReason());
@@ -1034,7 +1076,7 @@ void heatingJson(JsonDocument &d, bool includeConfig=true) {
   d["outputsEnabled"] = hc.enabled&&!config.thermostatMode;
   d["canArm"]=hc.enabled&&!config.thermostatMode&&!pumpThermalGuard.paused()&&
     configSavePhase!=ConfigSavePhase::Stopping&&configSavePhase!=ConfigSavePhase::Saved&&heat.canArm(millis());d["faultOutput"]=heat.faultOutput;
-  d["armed"]=heat.armed;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
+  d["armed"]=heat.armed;d["controlRequested"]=heatingRequested;d["resumePending"]=heatingResumePending;d["fault"]=heat.fault;d["controlMessage"]=heatingBlockReason();d["valuesSaved"]=heatCacheSaveOk&&!heatCacheDirty;
   JsonObject control;
   if(includeConfig){control=d.createNestedObject("control");control["enabled"]=hc.enabled;control["openMs"]=hc.openMs;control["maxAgeMs"]=hc.maxAgeMs;control["serviceMs"]=hc.serviceMs;control["pauseMs"]=hc.pauseMs;
     JsonArray aa=control.createNestedArray("actuators");
@@ -1106,11 +1148,13 @@ void loadHeating() {
 void setupWeb() {
   const char *headers[] = {"X-CSRF-Token","X-Admin-Session"};
   web.collectHeaders(headers, 2);
-  web.on("/", HTTP_GET, [] {
+  auto serveUi = [] {
     web.sendHeader("Cache-Control", "no-store");
     web.sendHeader("X-Frame-Options", "DENY");
     web.send_P(200, "text/html; charset=utf-8", WEB_UI);
-  });
+  };
+  web.on("/", HTTP_GET, serveUi);
+  web.on("/config.html", HTTP_GET, serveUi);
   web.on("/api/history", HTTP_GET, [] {
     DynamicJsonDocument d(32768);time_t now=time(nullptr);bool synced=historyTimeSynced(now);
     d["synced"]=synced;d["storage"]=historyStorage;JsonArray rows=d.createNestedArray("records");
@@ -1170,9 +1214,17 @@ void setupWeb() {
     sendJson(response,202);
   });
   web.on("/api/restart", HTTP_POST, [] {
-    if(!publicMutation())return;
+    if(!mutation())return;
     if(updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Dispositivo ocupado");return;}
-    if(!heatingSafe()||!thermostatSafe()){error(409,"Para o aquecimento e aguarda feedback OFF antes de reiniciar");return;}
+    if(!thermostatSafe()){error(409,"Para o termóstato e aguarda feedback OFF antes de reiniciar");return;}
+    if(!heatingSafe()){
+      pendingHeatingSave=false;pendingHeatingRestart=true;
+      configSavePhase=ConfigSavePhase::Stopping;configSaveStartedAt=millis();
+      configSaveMessage="A aguardar confirmação OFF para reiniciar…";
+      heatingResumePending=false;
+      pumpThermalGuard.cancelResume();heat.stop(configSaveStartedAt);
+      web.send(202,"application/json","{\"pending\":true}");return;
+    }
     web.send(200,"application/json","{\"restarting\":true}");scheduleRestart();
   });
   web.on("/api/heating/control",HTTP_POST,[]{
@@ -1182,10 +1234,19 @@ void setupWeb() {
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
     String action=d["action"]|"";
     if(action=="refresh"){heatReadSweep.start(roomCount);heatPoll=millis()-500;}
-    else if(action=="stop"){pumpThermalGuard.cancelResume();heat.stop(millis());}
+    else if(action=="stop"){
+      const bool wasRequested=heatingRequested;
+      heatingRequested=heatingResumePending=false;
+      pumpThermalGuard.cancelResume();heat.stop(millis());
+      if(wasRequested&&!persistHeatingRequest(false)){error(500,"Controlo parado, mas não foi possível guardar o estado OFF.");return;}
+    }
     else if(action=="arm"){
       if(pumpThermalGuard.paused()){error(409,heatingBlockReason());return;}
-      if(!heat.arm(millis())){error(409,heatingBlockReason());return;}
+      const uint32_t now=millis();
+      if(!heat.canArm(now)){error(409,heatingBlockReason());return;}
+      if(!heatingRequested&&!persistHeatingRequest(true)){error(500,"Não foi possível guardar a ativação do controlo.");return;}
+      heatingRequested=true;heatingResumePending=false;
+      heat.arm(now);
       for(unsigned i=0;i<roomCount;++i){roomStatusDirty[i]=true;}
     }
     else if(action=="room"&&heat.armed&&d["index"].is<unsigned>()&&d["mode"].is<int>()){
@@ -1231,7 +1292,6 @@ void setupWeb() {
     orbitSerial().println("AUDIT: login administrador");adminFailures=0;adminBlockedUntil=0;adminSession=randomSecret();adminLastAt=now;
     StaticJsonDocument<128> response;response["session"]=adminSession;sendJson(response);
   });
-  web.on("/config.html", HTTP_GET, []{web.send_P(200,"text/html; charset=utf-8",WEB_UI);});
   web.on("/api/network/scan",HTTP_GET,[]{
     if(!auth())return;
     int count=WiFi.scanComplete();DynamicJsonDocument d(4096);
@@ -1242,14 +1302,16 @@ void setupWeb() {
   });
   web.on("/api/admin/logout",HTTP_POST,[]{if(!mutation())return;adminSession="";web.send(200,"application/json","{}");});
   web.on("/api/admin/password",HTTP_POST,[]{
-    if(!mutation())return;StaticJsonDocument<256>d;
+    if(!mutation())return;
+    StaticJsonDocument<256>d;
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))||!d["password"].is<const char*>()){error(400,"Password invalida");return;}
     String pass=d["password"];if(pass.length()<10||pass.length()>63){error(400,"Password: 10 a 63 caracteres");return;}
     if(updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Dispositivo ocupado");return;}
     Config next=config;next.adminPassword=pass;if(!saveConfig(next)){error(500,"Falha ao guardar");return;}config=next;adminSession="";orbitSerial().println("AUDIT: password de administrador alterada");web.send(200,"application/json","{}");
   });
   web.on("/api/diagnostics",HTTP_GET,[]{
-    if(!auth())return;DynamicJsonDocument d(16384);d["logs"]=orbitSerial().snapshot();d["version"]=FirmwareVersion;d["build"]=__DATE__ " " __TIME__;d["freeHeap"]=ESP.getFreeHeap();d["uptime"]=millis()/1000;d["sdAvailable"]=false;auto a=d.createNestedArray("telegrams");for(unsigned i=0;i<logCount;++i)a.add(logs[(logNext+MaxLogs-logCount+i)%MaxLogs]);sendJson(d);
+    if(!auth())return;
+    DynamicJsonDocument d(16384);d["logs"]=orbitSerial().snapshot();d["version"]=FirmwareVersion;d["build"]=__DATE__ " " __TIME__;d["freeHeap"]=ESP.getFreeHeap();d["uptime"]=millis()/1000;d["sdAvailable"]=false;auto a=d.createNestedArray("telegrams");for(unsigned i=0;i<logCount;++i)a.add(logs[(logNext+MaxLogs-logCount+i)%MaxLogs]);sendJson(d);
   });
   web.on("/api/config", HTTP_GET, [] {
     if (!auth()) return;
@@ -1321,6 +1383,10 @@ void setupWeb() {
     }
     for(unsigned i=0;i<4;++i)if(config.relay[i].enabled)setRelay(i,false);
     saveHeatingValues(true);
+    if(next.thermostatMode&&heatingRequested){
+      heatingRequested=heatingResumePending=false;
+      if(!persistHeatingRequest(false))orbitSerial().println("Aquecimento: falha ao guardar estado OFF");
+    }
     config=next;
     orbitSerial().println("AUDIT: configuracao guardada; reinicio");
     configSaveMessage="Configuração guardada; o ESP vai reiniciar e confirmar OFF no arranque.";
@@ -1467,6 +1533,9 @@ void setupWeb() {
       JsonObject o = channels.createNestedObject();
       o["name"] = config.channel[i].name;
       o["valid"] = fresh(i, now);
+      float change;
+      if(i<2&&fresh(i,now)&&ambientTrend[i].delta(now,readings[i].value,change))
+        o["trend30m"]=change;
       if (fresh(i, now))
         o["value"] = readings[i].value;
       else
@@ -1488,11 +1557,12 @@ void setupWeb() {
     for (unsigned i = 0; i < romCount; ++i)
       roms.add(detectedRom[i]);
     JsonArray t = d.createNestedArray("telegrams");
-    if(authenticated())for (unsigned i = 0; i < logCount; ++i)
+    const bool details=authenticated();
+    if(details)for (unsigned i = 0; i < logCount; ++i)
       t.add(logs[(logNext + MaxLogs - logCount + i) % MaxLogs]);
-    if(!authenticated()){
+    if(!details){
       for(const char* key:{"individual","i2cMain","i2cOled","lastEvent","sent","acked","failed","freeHeap","bme","oled"})d.remove(key);
-      d["roms"].clear();d["showDiagnostics"]=false;
+      roms.clear();d["showDiagnostics"]=false;
       for(JsonObject item:d["relays"].as<JsonArray>())item.remove("gpio");
       for(JsonObject item:d["inputs"].as<JsonArray>())item.remove("gpio");
     }
@@ -1581,8 +1651,8 @@ void serialCommands() {
       orbitSerial().println("IP " + WiFi.localIP().toString() + " KNX " + stateName());
     } else if (line == "SETUP") {
       openAp();
-      orbitSerial().println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
-      orbitSerial().println("Administrador: admin; password guardada nao divulgada");
+      Serial.println(String("Password AP: ") + (apPassword()[0] ? apPassword() : "(rede aberta)"));
+      Serial.println("Administrador: admin; password guardada nao divulgada");
       orbitSerial().println("Web: utilizador admin; login na pagina Configuracoes");
     } else if (line == "REBOOT") {
       scheduleRestart();
@@ -1620,7 +1690,7 @@ void setup() {
     if (!saveConfig(config)) {
       orbitSerial().println("ERRO: configuracao nao persistida");
     }
-    orbitSerial().println("Primeiro acesso: admin / iot-device");
+    Serial.println("Primeiro acesso: admin / iot-device");
   }
   // Private test defaults are only used until credentials have been saved in flash.
   // Never overwrite a user's saved Web settings on every boot.
@@ -1633,6 +1703,7 @@ void setup() {
   loadHistory();
   configTzTime(config.timezone.c_str(),config.ntpServer.c_str(),"time.cloudflare.com");
   loadHeating();
+  if(hc.enabled&&!config.thermostatMode)loadHeatingRequest();
   loadHeatingValues();
   initRelays();
   initInputs();
@@ -1665,8 +1736,10 @@ void loop() {
   web.handleClient();
   serialCommands();
   if (!updating && !restarting) {
-    sampleSensors(millis());
-    historyLoop(millis());
+    const uint32_t sampledAt=millis();
+    sampleSensors(sampledAt);
+    for(unsigned i=0;i<2;++i)ambientTrend[i].sample(sampledAt,readings[i].value,fresh(i,sampledAt));
+    historyLoop(sampledAt);
     inputLoop(millis());
     thermostatLoop(millis());
     heatingLoop(millis());

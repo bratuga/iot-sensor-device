@@ -12,11 +12,11 @@ w.eval('heatingPlan=JSON.parse(JSON.stringify(heatingDraft));heatingPlan.circuit
 for(const [phase,total,left,color] of [['waiting',120000,90000,'waiting'],['service',900000,450000,'service'],['pause',300000,150000,'pause']]){
  w.eval(`Object.assign(heatingPlan,{pumpPhase:${JSON.stringify(phase)},pumpPhaseTotalMs:${total},pumpRemainingMs:${left}});heatingPlan.circuits[7].openingRemainingMs=90000;renderHeatStatus();`);
  assert.equal(d.getElementById('pumpPhase').dataset.phase,color);assert.equal(d.getElementById('pumpPhaseFill').style.width,phase==='waiting'?'25%':'50%');
- assert(d.getElementById('pumpPhaseLabel').textContent.includes(Math.ceil(left/1000)+' s'));
+ assert(d.getElementById('pumpPhase').getAttribute('aria-valuetext'));assert(!d.getElementById('pumpPhaseLabel'));
  assert(d.querySelector('#branches .collector-circuit[data-opening="true"]').textContent.includes('A abrir 90 s'));
 }
  w.eval('Object.assign(heatingPlan,{thermalPause:true,thermalReason:"cold-supply",pumpPhase:"thermal-cold",pumpPhaseTotalMs:900000,pumpRemainingMs:450000,controlMessage:"Proteção térmica: água fria"});renderHeatStatus();');
- assert.equal(d.getElementById('pumpStatus').textContent,'Pausa térmica');assert.equal(d.getElementById('pumpPhaseLabel').textContent,'Água de entrada fria · 8 min');assert(d.getElementById('rooms').textContent.includes('Pausa térmica'));
+ assert.equal(d.getElementById('pumpStatus').textContent,'Pausa térmica');assert.equal(d.getElementById('pumpPhase').getAttribute('aria-valuetext'),'Água de entrada fria');assert(d.getElementById('rooms').textContent.includes('Pausa térmica'));
  w.eval('heatingPlan.thermalPause=false;renderHeatStatus();');
 assert.equal(d.getElementById('heatOpen').value,'120');assert.equal(d.getElementById('heatService').value,'15');assert.equal(d.getElementById('heatPause').value,'5');assert.equal(d.getElementById('heatAge').value,'300');
 assert.equal(w.eval('heatingDraft.control.serviceMs'),900000);assert.equal(w.eval('heatingDraft.control.pauseMs'),300000);
@@ -30,7 +30,7 @@ assert(d.getElementById('rooms').textContent.includes('21,5'));assert(d.querySel
 assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'43%');
 assert.equal(d.querySelector('#rooms .setpoint-value').textContent,'23,0 °C');
 assert.equal(d.querySelector('#rooms .status').title,d.querySelector('#rooms .status').textContent);
-assert.equal(d.querySelector('.history-nav .nav-actions #viewSettings').getAttribute('aria-label'),'Configurações');
+assert.equal(d.querySelector('.orbit-rail #viewSettings').getAttribute('aria-label'),'Configurações');
 w.eval('heatingPlan.control.rooms[0].target=16;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'0%');
 w.eval('heatingPlan.control.rooms[0].target=30;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'86%');
 console.log('PASS navigation actions and setpoint ring scale 16–30 °C');
@@ -40,11 +40,11 @@ w.eval('heatingPlan.control.rooms[0].temperatureKnown=false;renderHeatStatus();'
 d.getElementById('hz0external').checked=true;d.getElementById('hz0bmeFallback').checked=true;d.getElementById('hz0margin').value='0.4';w.eval('captureHeating();renderHeating(false)');assert(d.getElementById('hz0external').checked);assert(d.getElementById('hz0bmeFallback').checked);assert.equal(d.getElementById('hz0margin').value,'0.4');console.log('PASS room control and BME fallback survive redraw');
 
 w.eval('heatingPlan.outputsEnabled=true;heatingPlan.armed=false;heatingPlan.canArm=false;heatingPlan.fault=true;heatingPlan.faultOutput=3;heatingPlan.pumpState="desligado";heatingPlan.controlMessage="Falha: Circuito 4 (feedback 3/5/14)";renderHeatStatus();');
-assert(d.getElementById('armHeat').disabled);
+assert(d.getElementById('toggleHeat').disabled);
 assert(d.getElementById('heatMessage').textContent.includes('Circuito 4'));
 assert(!d.getElementById('pumpState').textContent.includes('Falha'));
 assert(d.getElementById('pumpStatus').textContent.includes('Parada'));
-w.eval('heatingPlan.canArm=true;renderHeatStatus();');assert(!d.getElementById('armHeat').disabled);
+w.eval('heatingPlan.canArm=true;renderHeatStatus();');assert(!d.getElementById('toggleHeat').disabled);
 w.eval('heatingPlan.circuits[0].zone=-1;heatingPlan.circuits[0].state="nao utilizado";renderHeatStatus();');
 assert(d.querySelector('#branches .collector-circuit[data-available="false"]').getAttribute('aria-label').includes('não ligada'));
 console.log('PASS unused circuit, specific fault separate from pump, arm only after used outputs confirmed OFF');
@@ -169,7 +169,7 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  const now=Math.floor(Date.now()/1000);
  w.eval(`drawHistory([[${now-1200},35,25,21,55,1],[${now},34,null,21.5,54,0]])`);
  assert(d.querySelector('#historyChart circle[fill="#d694f5"]'));
- assert.equal(d.querySelectorAll('#historyChart path').length,4);
+ assert.equal(d.querySelectorAll('#historyChart path').length,3);assert.equal(d.querySelectorAll('#humidityChart path').length,1);
  dom.reconfigure({url:'http://sensor.local/'});
  d.getElementById('viewHistory').click();assert(!d.getElementById('historyArea').hidden);assert(d.getElementById('dashboardArea').hidden);
  console.log('PASS history chart shows pump feedback and four series with missing readings');
@@ -196,7 +196,10 @@ console.log('PASS OLED V2 preset, collector width and diagnostic below relays');
  w.eval(`globalThis.webCalls=[];globalThis.mockStatus={name:'Teste',ip:'10.10.5.28',knx:'ligado',individual:'1.1.1',firmware:'teste',uptimeMs:1000,csrf:'token',thermostatMode:false,channels:[{name:'Temperatura',valid:true,value:21.5,unit:'°C'}],telegrams:['telegrama de teste'],relays:[{name:'Rele 1',enabled:false,on:false},{name:'Rele 2',enabled:true,on:false,feedbackPending:true}],inputs:[{name:'Entrada',enabled:true,active:true}]};globalThis.mockHeat={outputsEnabled:true,armed:true,canArm:true,fault:false,controlMessage:'',pumpState:'ligado',pumpPhase:'service',pumpRemainingMs:12000,thermalPause:false,thermalReason:'none',zones:['Sala'],rooms:[{hasSetpoint:true,setpointKnown:true,target:22,temperatureKnown:true,temperatureFresh:true,value:21.5,mode:0,enabled:true,demand:true,setpointPending:false}],circuits:Array.from({length:8},(_,i)=>({position:i,zone:i===0?0:-1,state:i===0?'ligado':'nao utilizado',openingRemainingMs:0}))};api=async(path,options={})=>{webCalls.push({path,options});if(path==='/api/status')return mockStatus;if(path==='/api/heating/status')return mockHeat;if(path==='/api/heating/control')return {ok:true};if(path==='/api/heating/setpoint')return {queued:true};if(path==='/api/relay')return {applied:true};if(path==='/api/thermostat')return {ok:true,queued:true};throw Error('unexpected '+path);};refreshHeat=async()=>{heatingPlan=mockHeat;return mockHeat;};refresh=async()=>{latestThermo=mockStatus.thermostat;currentThermostatMode=!!mockStatus.thermostatMode;return mockStatus;};`);
  const deviceInfo=await tool('get_device_status').execute({},{});
  assert.equal(deviceInfo.name,'Teste');assert.equal(deviceInfo.sensors[0].value,21.5);assert.equal(deviceInfo.relays.length,1);assert.equal(deviceInfo.relays[0].configuredIndex,2);
+ await assert.rejects(()=>tool('get_recent_knx_telegrams').execute({},{}),/Inicia sessão/);
+ w.eval("adminSession='test-admin';adminApi=api");
  assert.deepEqual((await tool('get_recent_knx_telegrams').execute({},{})).telegrams,['telegrama de teste']);
+ w.eval("adminSession=''");
  const modeResult=await tool('set_room_heating_mode').execute({room:'Sala',mode:'on'},{});
  assert.equal(modeResult.accepted,true);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).index,0);assert.equal(JSON.parse(w.webCalls.at(-1).options.body).mode,2);
  console.log('PASS WebMCP device and bus reads; room control resolves names and preserves configured relay numbers');

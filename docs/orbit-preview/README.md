@@ -84,4 +84,3 @@ Verificado em navegador: renderização dos quatro percursos de equipamento, com
 Ainda não validado: compilação deste desenho em firmware, recursos RAM/flash, tipografia real do display, interação física dos botões, recuperação após falha de rede/reboot, RTC/NTP real, backend de autenticação, persistência, equipamentos, cablagem ou atuação KNX. As alterações serão implementadas só depois da aprovação visual e validadas por equipamento.
 
 A revisão de código e vulnerabilidades é separada, na branch `review/security-2026-11-07`, para poder ser aprovada independentemente do desenho.
-

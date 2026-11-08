@@ -179,6 +179,11 @@ struct Runtime {
     demand.fill(false);
     return true;
   }
+  bool resumeOnBoot(bool requested, uint32_t now) {
+    // A live actuator from before reboot must first report OFF. Other faults
+    // still require an explicit operator decision.
+    return requested && (!fault || failure==Failure::UnexpectedPump) && arm(now);
+  }
   void tick(uint32_t now, bool link) {
     if (link != connected) {
       connected = link; unexpectedPump=false;

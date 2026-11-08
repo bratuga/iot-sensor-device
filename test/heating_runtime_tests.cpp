@@ -53,6 +53,18 @@ int main(){
   r.tick(204,false);assert(r.fault&&!r.output[8].command&&r.output[7].command);}
  {Runtime r;boot(r);r.demand[0]=true;r.tick(1,true);r.output[0].sent=true;r.report(0,true,2);assert(!r.confirmed(0,true,2));r.acknowledge(0,true);assert(r.confirmed(0,true,3));r.set(0,false,4);assert(r.output[0].known&&r.output[0].reported);r.output[0].sent=true;r.acknowledge(0,true);assert(!r.confirmed(0,false,5));r.report(0,false,6);assert(r.confirmed(0,false,6));r.acknowledge(0,false);assert(!r.confirmed(0,false,7));}
  {Runtime r;r.tick(0,true);r.output[8].sent=true;r.report(8,false,1);assert(!r.arm(1));r.acknowledge(8,true);for(unsigned i=0;i<8;++i)sent(r,i,2);assert(r.arm(2));}
+ // Startup restores an ON request only after real OFF feedback, even if the
+ // pump was still ON following an abrupt reboot.
+ {Runtime r;const uint32_t now=100;
+  assert(!r.resumeOnBoot(true,now));r.tick(now,true);r.report(8,true,now);r.tick(now,true);
+  assert(r.fault&&!r.armed&&!r.resumeOnBoot(true,now));
+  sent(r,8,now+1);r.tick(now+1,true);
+  for(unsigned i=0;i<7;++i)sent(r,i,now+1);
+  assert(!r.resumeOnBoot(true,now+1));sent(r,7,now+2);
+  assert(!r.resumeOnBoot(false,now+2));assert(r.resumeOnBoot(true,now+2));
+  assert(!r.output[8].command&&!r.demand[0]);
+  r.trip(now+3,Runtime::Failure::FeedbackTimeout,8);
+  assert(!r.resumeOnBoot(true,now+4));}
  {Snapshot s;s.hasTemperature=s.hasSetpoint=true;s.temperature=19;s.setpoint=22;ZoneInput z;z.source=TemperatureSource::Knx;z.hysteresis=0.5f;z.maxAgeMs=300000;s.restore(z);assert(z.temperature==19&&z.setpoint==22&&z.setpointValid);assert(!z.valid&&!z.demand(1,false));z.valid=true;z.receivedAt=2;assert(z.demand(2,false));s.setpoint=100;s.restore(z);assert(!z.setpointValid&&!z.valid);}
  {ReadSweep sweep;assert(!sweep.remaining);for(unsigned rooms=0;rooms<=16;++rooms){sweep.start(rooms);assert(sweep.index==8);unsigned reads=0;bool seen[57]={};for(unsigned tick=0;tick<10000;++tick){if(sweep.remaining){assert(!seen[sweep.index]);seen[sweep.index]=true;++reads;sweep.complete();}}assert(reads==9+3*rooms&&!sweep.remaining);sweep.complete();assert(!sweep.remaining);}}
  std::cout<<"Heating runtime: 255 demand combinations, delays, stop ordering, missing feedback, reconnect and wrap passed\n";
