@@ -22,6 +22,9 @@ struct InputConfig {
 };
 struct Config {
   String name = "iot-sensor", ssid, wifiPassword, adminPassword;
+  bool wifiDhcp = true;
+  String wifiIp="192.168.1.80", wifiMask="255.255.255.0", wifiGateway="192.168.1.1", wifiDns="1.1.1.1";
+  String ntpServer="pool.ntp.org", timezone="WET0WEST,M3.5.0/1,M10.5.0";
   bool knxEnabled = false, bmeEnabled = false, oledEnabled = false, showDiagnostics = true;
   bool pumpColdGuardEnabled = true, pumpReturnGuardEnabled = true;
   float pumpColdLimitC = 30.0f, pumpReturnLimitC = 28.0f;
