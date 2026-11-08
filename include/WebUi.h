@@ -202,12 +202,24 @@ function captureHeating(){
  const h=heatingDraft;if(!h)return;
  h.control.enabled=$('heatEnabled').checked;h.control.openMs=durationForApi('openMs',$('heatOpen').value);h.control.maxAgeMs=durationForApi('maxAgeMs',$('heatAge').value);h.control.serviceMs=durationForApi('serviceMs',$('heatService').value);h.control.pauseMs=durationForApi('pauseMs',$('heatPause').value);
  h.zones=h.zones.map((_,i)=>$('zone'+i).value.trim());
- h.control.rooms=h.control.rooms.map((r,i)=>({...Object.fromEntries(['enable','status','temperature','setpoint'].map(k=>[k,$('hz'+i+k).value.trim()])),external:$('hz'+i+'external').checked,bmeFallback:$('hz'+i+'bmeFallback').checked,margin:Number($('hz'+i+'margin').value)}));
+ h.control.rooms=h.control.rooms.map((r,i)=>({...Object.fromEntries(['enable','status','temperature','setpoint'].map(k=>[k,$('hz'+i+k).value.trim()])),external:$('hz'+i+'external').checked,bmeFallback:$('hz'+i+'bmeFallback').checked,margin:$('hz'+i+'margin').value}));
  h.control.actuators=h.control.actuators.map((a,i)=>Object.fromEntries(['command','feedback'].map(k=>[k,$('ha'+i+k).value.trim()])));
  h.circuits.forEach((c,i)=>{c.position=Number($('circuitPosition'+i).value);});
 }
 $('addRoom').onclick=()=>{captureHeating();if(heatingDraft.zones.length>=16){show('Máximo de 16 divisões nesta versão.');return;}heatingDraft.zones.push('Divisão '+(heatingDraft.zones.length+1));heatingDraft.control.rooms.push({enable:'',status:'',temperature:'',setpoint:''});renderHeating(false);};
-$('saveHeating').onclick=async()=>{if(busy||!heatingDraft)return;if(setpointEdits.size||thermoEdit){show('Aguarda o envio e a confirmação dos setpoints antes de guardar.');return;}busy=true;try{captureHeating();const {zones,circuits,control}=heatingDraft;await waitForSafeSave(()=>adminApi('/api/heating/layout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({zones,circuits,control})}),'Mapa do aquecimento guardado após feedback OFF. O ESP está a reiniciar.');}catch(e){show('Mapa do aquecimento não guardado: '+e.message);}finally{busy=false;}};
+function heatingControlForSave(zones,control){
+ const rooms=control.rooms.map((room,i)=>{
+  const raw=room.margin.trim().replace(',','.');
+  const margin=/^\d+(?:\.\d+)?$/.test(raw)?Number(raw):NaN;
+  if(!Number.isFinite(margin)||margin<0.1||margin>5){
+   selectTab('features');$('hz'+i+'margin').focus();
+   throw Error('Histerese de «'+(zones[i]||('Divisão '+(i+1)))+'»: indica um valor entre 0,1 e 5,0 °C.');
+  }
+  return {...room,margin:Number(margin.toFixed(1))};
+ });
+ return {...control,rooms};
+}
+$('saveHeating').onclick=async()=>{if(busy||!heatingDraft)return;if(setpointEdits.size||thermoEdit){show('Aguarda o envio e a confirmação dos setpoints antes de guardar.');return;}busy=true;try{captureHeating();const {zones,circuits,control}=heatingDraft;const payload={zones,circuits,control:heatingControlForSave(zones,control)};await waitForSafeSave(()=>adminApi('/api/heating/layout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(payload)}),'Mapa do aquecimento guardado após feedback OFF. O ESP está a reiniciar.');}catch(e){show('Mapa do aquecimento não guardado: '+e.message);}finally{busy=false;}};
 function renderHeating(reset=true){
  if(!heatingPlan)return;
  renderHeatStatus();if(reset)heatingDraft=JSON.parse(JSON.stringify(heatingPlan));const h=heatingDraft;
@@ -221,7 +233,10 @@ function renderHeating(reset=true){
   const box=document.createElement('fieldset');box.id='hz'+i;const legend=document.createElement('legend');legend.textContent='Divisão '+(i+1);box.append(legend);$('zoneFields').append(box);
   field(box.id,'zone'+i,'Nome da divisão',name);
   field(box.id,'hz'+i+'external','Termóstato KNX externo (desmarcado: automático ESP)',h.control.rooms[i].external||false,'checkbox');
-  field(box.id,'hz'+i+'margin','Margem ± °C (histerese)',h.control.rooms[i].margin??0.3,'number',0.1);
+  const margin=h.control.rooms[i].margin??0.3;
+  const marginInput=field(box.id,'hz'+i+'margin','Margem ± °C (histerese)',typeof margin==='number'?margin.toFixed(1).replace('.',','):margin);
+  marginInput.inputMode='decimal';
+  marginInput.placeholder='0,3';
   field(box.id,'hz'+i+'bmeFallback','Usar BME local quando faltar temperatura KNX válida',h.control.rooms[i].bmeFallback||false,'checkbox');
   const list=document.createElement('div');box.append(list);
   h.circuits.forEach((c,j)=>{if(c.zone!==i)return;const row=document.createElement('p'),remove=document.createElement('button');remove.type='button';remove.textContent='Retirar circuito '+(j+1);remove.onclick=()=>{captureHeating();h.circuits[j].zone=-1;renderHeating(false);};row.append(remove);list.append(row);});
