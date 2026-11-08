@@ -1,3 +1,5 @@
+#include "OtaUpload.h"
+#include "OrbitTime.h"
 #include "OrbitLog.h"
 #include <DNSServer.h>
 #include "Config.h"
@@ -41,7 +43,7 @@ static_assert(sizeof(LOCAL_AP_PASSWORD) == 1 ||
 #include <memory>
 
 namespace {
-constexpr char FirmwareVersion[] = "0.3.20-orbit";
+constexpr char FirmwareVersion[] = IOT_FIRMWARE_VERSION;
 bool historyTimeSynced(time_t value) {
   return value >= history::MinTime && static_cast<uint64_t>(value) <= 4102444800ULL;
 }
@@ -1146,8 +1148,8 @@ void loadHeating() {
   for (unsigned i = 0; i < d["zones"].size(); ++i) heatingZones[i] = names[i];
 }
 void setupWeb() {
-  const char *headers[] = {"X-CSRF-Token","X-Admin-Session"};
-  web.collectHeaders(headers, 2);
+  const char *headers[] = {"X-CSRF-Token","X-Admin-Session","X-Firmware-Size"};
+  web.collectHeaders(headers, 3);
   auto serveUi = [] {
     web.sendHeader("Cache-Control", "no-store");
     web.sendHeader("X-Frame-Options", "DENY");
@@ -1568,58 +1570,29 @@ void setupWeb() {
     }
     sendJson(d);
   });
-  web.on(
-      "/api/update", HTTP_POST,
-      [] {
-        if (!mutation())
-          return;
-        if (!uploadAllowed) {
-          error(409, "Atualizacao nao iniciada");
-          return;
-        }
-        uploadAllowed = false;
-        updating = false;
-        if (!updateOk) {
-          error(400, "Firmware invalido ou escrita falhou");
-          return;
-        }
-        web.send(200, "application/json", "{\"updated\":true}");
-        scheduleRestart();
-      },
-      [] {
-        HTTPUpload &u = web.upload();
-        if (u.status == UPLOAD_FILE_START) {
-          uploadAllowed = false;
-          updateOk = false;
-          if (!authenticated() || web.header("X-CSRF-Token") != csrf || restarting || updating || !heatingSafe())
-            return;
-          saveHeatingValues(true);
-          uploadAllowed = true;
-          updating = true;
-          lastUploadAt = millis();
-          tunnel.stop(millis());
-          updateOk = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);
-        } else if (u.status == UPLOAD_FILE_WRITE) {
-          lastUploadAt = millis();
-          pollTunnel(lastUploadAt);
-          if (uploadAllowed && updateOk && Update.write(u.buf, u.currentSize) != u.currentSize)
-            updateOk = false;
-        } else if (u.status == UPLOAD_FILE_END) {
-          if (uploadAllowed) {
-            if (updateOk)
-              updateOk = Update.end(true);
-            else
-              Update.abort();
-          }
-        } else if (u.status == UPLOAD_FILE_ABORTED) {
-          if (uploadAllowed) {
-            Update.abort();
-            updating = false;
-            uploadAllowed = false;
-            updateOk = false;
-          }
-        }
-      });
+  web.on("/api/time",HTTP_GET,[]{if(!auth())return;StaticJsonDocument<512>d;orbitTime::status(d);d["storageAvailable"]=historyStorage;sendJson(d);});
+  web.on("/api/time/sync",HTTP_POST,[]{
+    if(!mutation())return;
+    if(updating||!orbitTime::synchronize(config.timezone.c_str(),config.ntpServer.c_str(),config.ntpSecondary.c_str())){error(409,"Sem Wi-Fi ou sincronizacao/OTA em curso");return;}
+    orbitSerial().println("AUDIT: sincronizacao NTP pedida");web.send(202,"application/json","{\"pending\":true}");
+  });
+  web.on("/api/update",HTTP_POST,[]{
+    if(!mutation()){otaUpload.abort();updating=uploadAllowed=updateOk=false;return;}
+    const bool ok=uploadAllowed&&updateOk&&otaUpload.finish();
+    uploadAllowed=false;updating=false;updateOk=false;
+    if(!ok){otaUpload.abort();error(400,"Firmware incompativel, incompleto ou invalido");return;}
+    web.send(200,"application/json","{\"updated\":true}");scheduleRestart();
+  },[]{
+    HTTPUpload& u=web.upload();
+    if(u.status==UPLOAD_FILE_START){
+      if(updating){otaUpload.abort();updateOk=false;return;}
+      uploadAllowed=updateOk=false;
+      if(!authenticated()||web.header("X-CSRF-Token")!=csrf||restarting||!heatingSafe())return;
+      uploadAllowed=true;updating=true;lastUploadAt=millis();saveHeatingValues(true);tunnel.stop(millis());
+      updateOk=otaUpload.start(size_t(web.header("X-Firmware-Size").toInt()));
+    }else if(u.status==UPLOAD_FILE_WRITE&&uploadAllowed){lastUploadAt=millis();pollTunnel(lastUploadAt);if(updateOk)updateOk=otaUpload.write(u.buf,u.currentSize);}
+    else if(u.status==UPLOAD_FILE_ABORTED){otaUpload.abort();updating=uploadAllowed=updateOk=false;}
+  });
   web.onNotFound([] {
     error(404, "Nao encontrado");
   });
@@ -1701,7 +1674,7 @@ void setup() {
   if (config.wifiPassword.isEmpty()) config.wifiPassword = LOCAL_WIFI_PASSWORD;
 #endif
   loadHistory();
-  configTzTime(config.timezone.c_str(),config.ntpServer.c_str(),"time.cloudflare.com");
+  orbitTime::begin(config.timezone.c_str(),config.ntpServer.c_str(),config.ntpSecondary.c_str());
   loadHeating();
   if(hc.enabled&&!config.thermostatMode)loadHeatingRequest();
   loadHeatingValues();
@@ -1725,7 +1698,7 @@ void setup() {
 void loop() {
   uint32_t now = millis();
   if (updating && sensor::elapsed(now, lastUploadAt, 60000)) {
-    Update.abort();
+    otaUpload.abort();
     updating = false;
     uploadAllowed = false;
     updateOk = false;
