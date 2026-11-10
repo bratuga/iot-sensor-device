@@ -10,6 +10,83 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
 .collector-card{--collector-active:#69d8c3;--collector-warning:#efb35a;--collector-off:#657681;width:100%;min-width:0;margin:18px 0;padding:18px;border:1px solid #344854;border-radius:22px;background:radial-gradient(circle at 17% 42%,#69d8c30c,transparent 22rem),linear-gradient(145deg,#1d2d38,#121f28 75%);box-shadow:0 22px 48px #0005}
 .collector-header,.collector-title-group,.collector-system,.collector-rail,.collector-footer,.collector-legend{display:flex;align-items:center}.collector-header,.collector-footer{justify-content:space-between;gap:12px}.collector-header{margin-bottom:16px}.collector-title-group{gap:10px;min-width:0}.collector-title-icon{display:grid;width:39px;height:39px;flex:0 0 39px;place-items:center;border:1px solid #526875;border-radius:12px;background:#263742;color:var(--collector-active)}.collector-title-icon svg{width:22px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-width:1.8}.collector-title-group h2{margin:0;font-size:1rem}.collector-subtitle{margin:3px 0 0;color:#9cafbb;font-size:.69rem}.collector-summary{display:inline-flex;align-items:center;gap:7px;min-height:31px;padding:0 11px;border:1px solid #69d8c35e;border-radius:999px;background:#69d8c314;color:var(--collector-active);font-size:.7rem;font-weight:750;white-space:nowrap}.collector-summary::before{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor;content:""}.collector-system{display:grid;grid-template-columns:138px minmax(0,1fr);gap:12px;min-width:0}.collector-pump{--state:var(--collector-active);--state-rgb:105,216,195;display:grid;min-height:245px;padding:14px 9px 12px;place-items:center;align-content:center;border:1px solid #3d515e;border-radius:18px;background:radial-gradient(circle at 50% 37%,rgba(var(--state-rgb),.1),transparent 54%),#132029;text-align:center}.collector-pump[data-state="off"],.collector-pump[data-state="unknown"]{--state:#72818b;--state-rgb:114,129,139}.collector-pump[data-state="pending"],.collector-pump[data-state="blocked"]{--state:var(--collector-warning);--state-rgb:239,179,90}.collector-pump-graphic{width:108px;height:108px;padding:8px;border:1px solid rgba(var(--state-rgb),.55);border-radius:29px;background:linear-gradient(145deg,#3b4d57,#111a20 70%);color:var(--state);box-shadow:inset 0 1px 1px #fff3,0 14px 26px #0007,0 0 20px rgba(var(--state-rgb),.15)}.collector-pump-shell{display:grid;width:90px;height:90px;place-items:center;border-radius:50%;background:radial-gradient(circle at 35% 25%,#687983,#354550 39%,#11191e 76%);box-shadow:inset 0 0 0 4px #b5c5cd2b,inset 0 0 22px #000b,0 0 0 2px #0a1014}.collector-pump-shell svg{width:80px;filter:drop-shadow(0 3px 5px #0009)}.collector-pump-inner{fill:#162129;stroke:currentColor;stroke-width:2}.collector-pump-rotor{fill:currentColor;opacity:.84;transform-origin:50px 50px}.collector-pump-hub{fill:#334650;stroke:#b7c6cd;stroke-width:1.4}.collector-pump-led{fill:currentColor;filter:drop-shadow(0 0 5px currentColor)}.collector-pump[data-state="running"] .collector-pump-rotor{animation:collector-spin 1.2s linear infinite}.collector-pump[data-state="pending"] .collector-pump-graphic{animation:collector-pulse .9s ease-in-out infinite}.collector-pump-name{margin-top:10px;font-size:.76rem}.collector-pump-status{display:flex;align-items:center;gap:5px;margin-top:3px;color:var(--state);font-size:.7rem;font-weight:750}.collector-pump-status::before{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;content:""}.collector-pump-detail{min-height:26px;margin-top:5px;color:#9cafbb;font-size:.6rem;line-height:1.35}.collector-manifold{min-width:0;max-width:100%}.collector-rail{--rail:#fff;position:relative;height:45px;justify-content:space-between;gap:6px;padding:0 10px 0 16px;overflow:hidden;border:1px solid #536773;border-radius:14px;background:linear-gradient(180deg,#42535e,#263640 45%,#19252d 100%);box-shadow:inset 0 1px 1px #fff3,inset 0 -8px 14px #0005,0 7px 14px #0003}.collector-rail::before{position:absolute;inset:0 auto 0 0;width:6px;background:var(--rail);box-shadow:0 0 15px var(--rail);content:""}.collector-supply{--rail:#ff715b}.collector-return{--rail:#4db9e7}.collector-rail-label{position:relative;z-index:1;display:flex;align-items:center;gap:5px;min-width:0;font-size:.72rem;font-weight:720}.collector-flow-arrow{color:var(--rail);font-size:1rem}.collector-temperature{position:relative;z-index:1;padding:5px 7px;border:1px solid #657884;border-radius:8px;background:#111c23b8;color:#c3d0d7;font-size:.65rem;white-space:nowrap}.collector-circuits{display:grid;height:154px;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;min-width:0;padding:0 2px}.collector-circuit{--circuit:var(--collector-off);position:relative;display:grid;min-width:0;padding:5px 0 6px;grid-template-rows:32px 1fr auto auto;justify-items:center;color:#f3f7f9;text-align:center}.collector-circuit[data-active="true"]{--circuit:var(--collector-active)}.collector-circuit[data-pending="true"]{--circuit:var(--collector-warning)}.collector-circuit[data-available="false"]{--circuit:#56636c;opacity:.42}.collector-valve{position:relative;z-index:2;display:grid;width:min(30px,90%);height:24px;place-items:center;border:1px solid #627681;border-radius:7px 7px 5px 5px;background:linear-gradient(145deg,#455963,#1a272f);color:var(--circuit);box-shadow:0 4px 8px #0005}.collector-valve::before{position:absolute;top:-5px;width:15px;height:5px;border-radius:3px 3px 0 0;background:#647681;content:""}.collector-valve-led{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}.collector-circuit[data-pending="true"] .collector-valve-led{animation:collector-blink .65s ease-in-out infinite}.collector-pipe{position:relative;z-index:1;width:6px;height:100%;min-height:53px;overflow:hidden;border:1px solid #0b1216;border-radius:4px;background:var(--circuit);box-shadow:0 0 8px color-mix(in srgb,var(--circuit),transparent 65%)}.collector-circuit[data-available="false"] .collector-pipe{width:4px;border:0;background:repeating-linear-gradient(to bottom,#65727b 0 6px,transparent 6px 11px);box-shadow:none}.collector-flow{position:absolute;inset:-18px 0 auto;height:20px;background:linear-gradient(transparent,#eafffa,transparent);opacity:0}.collector-circuit[data-active="true"] .collector-flow{opacity:.65;animation:collector-flow-down 1.35s linear infinite}.collector-circuit-id{margin-top:3px;font-size:.68rem;font-weight:800}.collector-room{max-width:100%;overflow:hidden;color:#9cafbb;font-size:.54rem;text-overflow:ellipsis;white-space:nowrap}.collector-footer{margin-top:13px;color:#9cafbb;font-size:.61rem}.collector-legend{gap:11px;flex-wrap:wrap}.collector-legend-item{display:inline-flex;align-items:center;gap:5px}.collector-legend-item::before{width:7px;height:7px;border-radius:50%;background:var(--legend);content:""}.collector-safety{white-space:nowrap;color:#c1ced5}@keyframes collector-spin{to{transform:rotate(360deg)}}@keyframes collector-pulse{50%{box-shadow:0 0 27px rgba(var(--state-rgb),.42)}}@keyframes collector-flow-down{to{transform:translateY(92px)}}@keyframes collector-blink{50%{opacity:.25}}@media(max-width:720px){.collector-header,.collector-footer{align-items:flex-start;flex-direction:column}.collector-system{grid-template-columns:minmax(0,1fr)}.collector-pump{min-height:unset;grid-template-columns:auto 1fr;grid-template-rows:auto auto auto;justify-items:start;column-gap:14px;text-align:left}.collector-pump-graphic{grid-row:1/4}.collector-pump-name{margin-top:0}}@media(max-width:400px){.collector-card{padding:10px}.collector-system{gap:8px}.collector-circuits{gap:1px}.collector-rail-label{font-size:.61rem}.collector-temperature{font-size:.58rem;padding:4px}.collector-room{font-size:.48rem}}@media(prefers-reduced-motion:reduce){.collector-pump-rotor,.collector-pump-graphic,.collector-valve-led,.collector-flow{animation:none!important}}
 </style>
+<style data-orbit-controls>
+body.orbit{--orange:#efb35a;--red:#f47780}
+body.orbit.light{color-scheme:light;--bg:#edf4f2;--panel:#fff;--line:#bacfc9;--accent:#18755f;--orbit-bg:#edf4f2;--orbit-panel:#fff;--orbit-raised:#deede8;--orbit-line:#bacfc9;--orbit-ink:#18362f;--orbit-muted:#516b62;--orbit-accent:#18755f;color:var(--orbit-ink)}
+body.orbit.light :is(.top-tiles .card,#sensorReadings .card,.feature-tile,.history-chart){background:var(--orbit-panel);color:var(--orbit-ink)}
+body.orbit.light :is(.hint,.history-legend,.settings-actions p,#settingsArea p,#settingsArea small,#settingsArea legend){color:var(--orbit-muted)}
+body.orbit.light .settings-actions{background:var(--orbit-panel);color:var(--orbit-ink)}
+body.orbit.light :is(.thermostat-hero,.collector-card,.room-thermostat,.thermostat){color:#e8eef3}
+.orbit-rail>#railPower{
+ --rail-ring:var(--orbit-accent);--rail-fill:0%;
+ position:relative;display:grid;place-items:center;flex:none;
+ width:118px;height:118px;min-height:0;margin:0 auto 16px;padding:0;
+ border:0;border-radius:50%;background:var(--orbit-bg);color:var(--orbit-ink);
+ box-shadow:0 0 0 7px color-mix(in srgb,var(--rail-ring),transparent 94%);
+ touch-action:none;user-select:none;-webkit-touch-callout:none;
+}
+#railPower[data-state=warning]{--rail-ring:var(--orange)}
+#railPower[data-state=critical]{--rail-ring:var(--red)}
+#railPower:is([data-state=off],[data-state=offline]){--rail-ring:var(--orbit-muted)}
+#railPower[data-holding],#railPower[data-pending]{--rail-ring:var(--orbit-accent)}
+#railPower:is([data-holding],[data-pending]) .rail-power-ring{visibility:hidden}
+#railPower[aria-disabled=true]{cursor:default}
+#railPower :is(.rail-power-track,.rail-power-ring,.rail-power-progress){
+ position:absolute;inset:0;border-radius:50%;pointer-events:none;
+ mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px));
+}
+.rail-power-track{background:var(--orbit-line)}
+.rail-power-ring{background:var(--rail-ring)}
+#railPower[data-state=ok] .rail-power-ring{
+ --dim:color-mix(in srgb,var(--rail-ring),transparent 62%);
+ background:conic-gradient(var(--dim),var(--rail-ring) 32%,var(--dim) 67%);
+ animation:rail-power-rotate 8s linear infinite;
+}
+#railPower[data-state=warning] .rail-power-ring{animation:rail-power-pulse 2.4s ease-in-out infinite}
+#railPower[data-state=critical] .rail-power-ring{animation:rail-power-pulse .8s ease-in-out infinite}
+#railPower:is([data-state=off],[data-state=offline]) .rail-power-ring{opacity:.4}
+.rail-power-progress{background:conic-gradient(var(--rail-ring) var(--rail-fill),transparent var(--rail-fill))}
+.rail-power-metrics:not([hidden]){display:grid;gap:3px}
+.rail-power-metrics>span{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.orbit-rail .rail-power-icon{width:22px;height:22px;color:var(--orbit-muted)}
+.rail-power-centre{max-width:76px;font-size:12px;line-height:1.2;text-align:center;overflow-wrap:anywhere}
+.rail-power-centre[data-symbol]{color:var(--rail-ring);font-size:30px}
+.rail-power-notice{font-size:11px;text-align:center;color:var(--orbit-muted)}
+.rail-power-notice:empty{display:none}
+@keyframes rail-power-rotate{to{transform:rotate(360deg)}}
+@keyframes rail-power-pulse{0%,100%{opacity:1}50%{opacity:.27}}
+@media(prefers-reduced-motion:reduce){
+ #railPower[data-state] .rail-power-ring{animation:none}
+}
+@media(max-width:760px){
+ .orbit-rail>#railPower{width:50px;height:50px;margin:0 3px;box-shadow:none}
+ #railPower :is(.rail-power-track,.rail-power-ring,.rail-power-progress){
+  mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#000 calc(100% - 2px));
+ }
+ .rail-power-metrics:not([hidden]){gap:0}
+ .rail-power-metrics>span{gap:2px;font-size:10px}
+ .orbit-rail .rail-power-icon{width:11px;height:11px}
+ .rail-power-centre{max-width:40px;font-size:9px}
+ .rail-power-centre[data-symbol]{font-size:20px}
+ .rail-power-notice:not(:empty){position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+}
+
+.orbit-rail>.orbit-theme{margin-top:auto;display:flex;justify-content:center;align-items:center;min-height:48px;padding:6px;border:0;background:transparent;color:var(--orbit-muted);cursor:pointer}
+.orbit-theme-track{display:grid;grid-template-columns:1fr 1fr;align-items:center;width:74px;height:34px;flex:none;border:1px solid var(--orbit-line);border-radius:99px;text-align:center;background:var(--orbit-bg)}
+.orbit-theme-track>span{border-radius:99px;font-size:19px;line-height:30px}
+.orbit-theme[aria-checked=false] .orbit-theme-track>span:first-child,.orbit-theme[aria-checked=true] .orbit-theme-track>span:last-child{background:var(--orbit-accent);color:var(--orbit-bg)}
+.orbit-rail :is(button,a):focus-visible{outline:2px solid var(--orbit-accent);outline-offset:3px}
+.orbit-rail [hidden]{display:none!important}
+@media(max-width:760px){
+ .orbit-rail{display:grid!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:2px!important;align-items:center}
+ .orbit-rail>button,.orbit-rail>a:not(.orbit-home){min-width:0;padding:5px 1px;font-size:clamp(8px,2vw,10px);text-align:center}
+ .orbit-rail>.orbit-theme{margin-top:0}
+ .orbit-theme-track{width:min(46px,100%);height:28px}
+ .orbit-theme-track>span{font-size:15px;line-height:24px}
+ .orbit-rail>#railPower{width:46px;height:46px;margin:0 auto}
+ .rail-power-metrics>span{font-size:8px;gap:1px}
+}
+</style>
 <style>
 .settings-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:18px 0}.settings-tabs button{background:#263640;color:#dce7ee;border-radius:12px;padding:10px 15px}.settings-tabs button[aria-selected="true"]{background:#69d8c3;color:#10251f}.tab-panel{min-width:0}.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.feature-tile{margin:0;min-width:0}.feature-grid #collectorSettings,.feature-grid #thermostatSettings{grid-column:1/-1}.feature-tile h2{margin-top:0}.feature-tile p{line-height:1.45}.tab-panel fieldset{padding:14px}.tab-panel legend{font-weight:750;color:#dbe9ee}.tab-panel .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}.settings-actions{position:sticky;bottom:0;z-index:3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#182833f5;border:1px solid #38515e;border-radius:14px;padding:10px 16px}.settings-actions p{margin:0;font-size:.77rem}.knx-console{max-height:265px;min-height:140px;overflow:auto;background:#0a151d;border:1px solid #334b58;border-radius:12px;padding:12px}.thermostat-hero{display:grid;place-items:center;gap:10px;padding:35px;background:radial-gradient(circle at center,#2a4a5155,transparent 26rem),#182630}.thermostat-hero .thermostat{width:min(100%,360px);padding:24px}.thermostat-hero .dial{width:190px}.thermostat-hero .current{font-size:2.7rem}.thermostat-hero .step{width:46px;height:46px;flex-basis:46px}.hint{font-size:.78rem;color:#a8bbc6}@media(max-width:600px){.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.settings-tabs button{width:100%}}
 </style>
@@ -41,12 +118,12 @@ html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24
 .orbit-switch[aria-checked=true] .orbit-switch-track::after{transform:translateX(16px)}
 .sensor-trend{font-size:.85em;margin-left:.35em;color:var(--orbit-muted)}.sensor-trend[data-direction=up]{color:#f29d70}.sensor-trend[data-direction=down]{color:#74c8ee}
 .collector-pump-detail:empty{display:none}
-</style></head><body class="orbit"><nav aria-label="Navegação principal" class="orbit-rail"><div class="orbit-logo">ORBIT</div><a aria-label="Início" class="orbit-home" href="/">⌂</a>
+</style></head><body class="orbit"><nav aria-label="Navegação principal" class="orbit-rail"><div class="orbit-logo">ORBIT</div><button type="button" id="railPower" class="rail-power" data-state="offline" aria-label="Comando geral · a aguardar estado" aria-disabled="true">—</button>
 <a id="viewPanel" data-view="dashboard" href="/#painel"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>Painel</a>
 <a id="viewSensors" data-view="sensors" href="/#sensores"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/></svg>Sensores</a>
 <a id="viewHistory" data-view="history" href="/#historico"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 20V10m6 10V6m6 14V12m6 8V3"/></svg>Histórico</a>
 <a id="viewHelp" data-view="help" href="/#ajuda"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.8 2.1c-1.3.8-1.3 1.4-1.3 2.9m0 2v1"/></svg>Ajuda</a>
-<a id="viewSettings" aria-label="Configurações" data-view="settings" href="/config.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M3 18h18M8 3v6m8 6v6"/></svg>Configuração</a></nav>
+<a id="viewSettings" aria-label="Configurações" data-view="settings" href="/config.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M3 18h18M8 3v6m8 6v6"/></svg>Configuração</a><button type="button" id="orbitTheme" class="orbit-theme" role="switch" aria-checked="false" aria-label="Tema claro" title="Alternar tema claro e escuro"><span class="orbit-theme-track" aria-hidden="true"><span>☾</span><span>☀</span></span></button></nav>
 <div class="shell"><header class="page-header"><h1 id="deviceName">Sensor KNX</h1></header><div id="msg" role="status"></div><main hidden="" id="helpArea"><section><h2>Ajuda · controlo do aquecimento</h2><p>Ativa o controlo geral após confirmar o estado da bomba e dos circuitos.</p><p><strong>Automático:</strong> a divisão pede calor de acordo com a temperatura e o setpoint. Sem temperatura válida ou setpoint, deixa de pedir calor e fica cinzenta. Ao regressar uma leitura válida, o automático retoma se o controlo estiver ativo. Se estiver configurado, o BME serve de alternativa quando falta uma temperatura KNX válida.</p><p><strong>Manual:</strong> o botão de ligar/desligar aparece ao lado do modo. O pedido mantém-se até o desligares, mudares de modo ou o controlo parar por falha.</p><p><strong>Bomba e válvulas:</strong> o ESP envia o comando e aguarda o feedback KNX; a bomba espera o tempo de abertura e faz os ciclos de serviço e pausa definidos. Falhas KNX ou de feedback podem parar o controlo e exigir nova ativação.</p><p><strong>Proteção térmica:</strong> a bomba tem 5 minutos de circulação com água de entrada abaixo do mínimo. Se a água não atingir o limite nesse período, para primeiro a bomba e depois fecha os circuitos, aguarda a pausa configurada e tenta novamente, com uma nova janela de 5 minutos. Se a água de retorno se mantiver acima do limite durante o tempo definido, também pausa. A contagem aparece na barra da bomba. As sondas DS18B20 têm de estar configuradas e a enviar leituras recentes.</p><p><strong>Reiniciar:</strong> aguarda confirmação OFF das saídas. Se o controlo estava ativo, retoma no arranque após confirmar as saídas desligadas.</p><p><strong>Histórico:</strong> regista sensores e amostras do estado da bomba de 20 em 20 minutos. Não participa no controlo.</p><p id="webMcpStatus" role="status">A verificar ferramentas WebMCP…</p></section></main><main id="sensorArea" hidden><section><h2>Sensores locais</h2><div class="grid" id="sensorReadings"></div></section></main><main hidden id="historyArea"><section class="history-card">
 <h2>Histórico · últimas 48 horas</h2><p>Desliza para ver o histórico. Cada ecrã mostra cerca de duas horas. Leituras de 20 em 20 minutos, na hora local do navegador.</p>
 <p id="historyMessage" role="status">A carregar…</p>
@@ -97,7 +174,139 @@ html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24
 <section><h2>Administração</h2><label>Nova palavra-passe<input autocomplete="new-password" id="newAdminPassword" maxlength="63" minlength="10" type="password"/></label><button id="changeAdminPassword" type="button">Alterar palavra-passe</button> <button id="restartDevice" type="button">Reiniciar dispositivo</button></section></div>
 <div class="settings-actions"><button type="submit">Guardar configurações e reiniciar</button><p>Ao gravar, o ESP reinicia e confirma OFF no arranque pela ligação KNX configurada.</p></div></form>
 </div></main><footer class="device-meta" id="connection">A ligar ao dispositivo…</footer>
-<script>
+<script data-orbit-controls>// Orbit control adapted from bratuga/iot-vmc-controler main 754e3b0.
+function createOrbitPower(sendPower){
+ const railPower=document.getElementById('railPower');
+ railPower.innerHTML=`<span class="rail-power-track" aria-hidden="true"></span><span class="rail-power-ring" aria-hidden="true"></span><span class="rail-power-progress" aria-hidden="true"></span>
+  <span class="rail-power-metrics" id="railPowerMetrics" aria-hidden="true" hidden>
+   <span><svg class="rail-power-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M8 2v3m4-3v3m4-3v3M8 19v3m4-3v3m4-3v3M2 8h3m-3 4h3m-3 4h3m14-8h3m-3 4h3m-3 4h3"/></svg><span id="railCpu">—</span></span>
+   <span><svg class="rail-power-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="7" width="20" height="9" rx="1.5"/><path d="M5 16v3m3-3v3m3-3v3m5-3v3m3-3v3M6 11h2m3 0h2m3 0h2"/></svg><span id="railHeap">—</span></span>
+  </span>
+  <span class="rail-power-centre" id="railPowerCentre" aria-hidden="true">—</span>`;
+ railPower.insertAdjacentHTML('afterend', '<span class="rail-power-notice" id="railPowerNotice" role="status"></span>');
+ const vmcEl=id=>document.getElementById(id);
+ const vmcText=(id,text)=>{vmcEl(id).textContent=text};
+ let deviceState=null,deviceBusy=false;
+ let railHold=null,railPending=false,railFrame=0,railConfirmTarget=null;
+ function railPowerState(state){
+  if(typeof state?.powerEnabled!=='boolean')return ['offline','Sem ligação'];
+  if(state.level==='critical')return ['critical',state.label||'Falha crítica'];
+  if(state.level==='warning')return ['warning',state.label||'A aguardar'];
+  if(!state.powerEnabled)return ['off','Saídas desligadas'];
+  return ['ok','Ligada · OK'];
+ }
+ function renderRailPower(){
+  const enabled=deviceState?.powerEnabled;
+  if(railConfirmTarget!==null&&enabled===railConfirmTarget){railConfirmTarget=null;vmcText('railPowerNotice','')}
+  if(railHold&&(deviceBusy||deviceState?.canToggle===false||railHold.enabled!==enabled))clearRailHold();
+  const [state,label]=railPowerState(deviceState);
+  const working=!!railHold||railPending;
+  railPower.dataset.state=state;
+  railPower.toggleAttribute('data-holding',!!railHold);
+  railPower.toggleAttribute('data-pending',railPending);
+  railPower.setAttribute('aria-disabled',String(state==='offline'||deviceBusy||railPending||deviceState?.canToggle===false));
+  const metrics=state==='ok'&&!working;
+  vmcEl('railPowerMetrics').hidden=!metrics;
+  const cpu=Number.isFinite(deviceState?.cpuUsePct)?deviceState.cpuUsePct+'%':Number.isFinite(deviceState?.cpuMHz)?deviceState.cpuMHz+' MHz':'—';
+  const heap=Number.isFinite(deviceState?.heapUsePct)?deviceState.heapUsePct+'%':'—';
+  vmcText('railCpu',cpu);vmcText('railHeap',heap);
+  const centre=vmcEl('railPowerCentre');
+  const powerSymbol=working||state==='off';
+  centre.hidden=metrics;
+  centre.toggleAttribute('data-symbol',powerSymbol);
+  vmcText('railPowerCentre',powerSymbol?'⏻':state==='offline'?'—':label);
+  const hint=state==='offline'?'':' · manter premido 1,5 s para '+(enabled?'desligar':'ligar');
+  const accessible=label+(metrics?' · CPU '+cpu+(Number.isFinite(deviceState?.cpuUsePct)?' de utilização':' de frequência; utilização indisponível')+' · memória utilizada '+heap:'')+hint;
+  railPower.setAttribute('aria-label',accessible);
+  railPower.title=accessible;
+ }
+ function clearRailHold(){
+  railHold=null;
+  cancelAnimationFrame(railFrame);
+  railPower.style.setProperty('--rail-fill','0%');
+ }
+ function cancelRailHold(){
+  if(!railHold)return;
+  clearRailHold();
+  renderRailPower();
+ }
+ function startRailHold(source){
+  if(railHold||deviceBusy||railPending||typeof deviceState?.powerEnabled!=='boolean'||deviceState.canToggle===false)return;
+  const hold={source,enabled:deviceState.powerEnabled,started:performance.now()};
+  railHold=hold;
+  railConfirmTarget=null;
+  vmcText('railPowerNotice','');
+  renderRailPower();
+  const fill=async now=>{
+   if(railHold!==hold)return;
+   const progress=Math.min(1,(now-hold.started)/1500);
+   railPower.style.setProperty('--rail-fill',progress*100+'%');
+   if(progress<1){railFrame=requestAnimationFrame(fill);return}
+   clearRailHold();
+   if(deviceBusy||deviceState?.canToggle===false||deviceState?.powerEnabled!==hold.enabled){renderRailPower();return}
+   const target=!hold.enabled;
+   railPending=true;
+   railPower.style.setProperty('--rail-fill','100%');
+   let accepted=false;
+   try{accepted=await sendPower(target)}catch(error){/* The last confirmed state stays visible. */}
+   railPending=false;
+   railPower.style.setProperty('--rail-fill','0%');
+   if(accepted&&deviceState?.powerEnabled!==target)railConfirmTarget=target;
+   vmcText('railPowerNotice',!accepted?'Comando falhou':railConfirmTarget!==null?'A aguardar confirmação':'');
+   renderRailPower();
+  };
+  railFrame=requestAnimationFrame(fill);
+ }
+ railPower.addEventListener('pointerdown',event=>{
+  if(!event.isPrimary||event.button!==0||railPower.getAttribute('aria-disabled')==='true')return;
+  railPower.setPointerCapture(event.pointerId);
+  startRailHold(event.pointerId);
+ });
+ for(const name of ['pointerup','pointercancel','lostpointercapture']){
+  railPower.addEventListener(name,event=>{if(railHold?.source===event.pointerId)cancelRailHold()});
+ }
+ railPower.addEventListener('pointermove',event=>{
+  if(railHold?.source!==event.pointerId)return;
+  const bounds=railPower.getBoundingClientRect();
+  if(event.clientX<bounds.left-8||event.clientX>bounds.right+8||event.clientY<bounds.top-8||event.clientY>bounds.bottom+8)cancelRailHold();
+ });
+ railPower.addEventListener('keydown',event=>{
+  if(event.key==='Escape')cancelRailHold();
+  if(event.key!==' '&&event.key!=='Enter')return;
+  event.preventDefault();
+  if(!event.repeat)startRailHold(event.key);
+ });
+ railPower.addEventListener('keyup',event=>{if(railHold?.source===event.key)cancelRailHold()});
+ railPower.addEventListener('blur',cancelRailHold);
+ railPower.addEventListener('contextmenu',event=>event.preventDefault());
+ window.addEventListener('blur',cancelRailHold);
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelRailHold()});
+ return {update(state,busy=false){
+  deviceState=state;
+  deviceBusy=busy;
+  renderRailPower();
+ }};
+}
+
+function initOrbitTheme(key='orbit-theme'){
+ const button=document.getElementById('orbitTheme');if(!button)return;
+ const apply=light=>{document.body.classList.toggle('light',light);button.setAttribute('aria-checked',String(light));};
+ try{apply(localStorage.getItem(key)==='light')}catch(e){apply(false)}
+ button.addEventListener('click',()=>{const light=!document.body.classList.contains('light');apply(light);try{localStorage.setItem(key,light?'light':'dark')}catch(e){}});
+}
+
+initOrbitTheme('iot-sensor-device-theme');
+let orbitLastState=null,orbitPowerBusy=false;
+const orbitPower=createOrbitPower(async enabled=>{
+ if(orbitPowerBusy)return false;orbitPowerBusy=true;
+ try{await orbitPowerRequest(enabled);await orbitRefreshPower();return true}
+ finally{orbitPowerBusy=false;orbitShowPower(orbitLastState)}
+});
+function orbitShowPower(s){orbitLastState=s;orbitPower.update(typeof s?.powerEnabled==='boolean'?{powerEnabled:s.powerEnabled,cpuUsePct:s.cpuUsePct,cpuMHz:s.cpuMHz,heapUsePct:s.heapUsePct,level:s.powerLevel,label:s.powerLabel,canToggle:s.powerCanToggle!==false}:null,orbitPowerBusy);}
+
+async function orbitPowerRequest(enabled){await api('/api/power',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({enabled}),signal:AbortSignal.timeout(5000)});}
+async function orbitRefreshPower(){try{orbitShowPower(await api('/api/status',{signal:AbortSignal.timeout(5000)}))}catch(e){orbitShowPower(null);throw e}}
+</script><script>
 'use strict';let cfg,csrf='',busy=false;
 const $=id=>document.getElementById(id);const show=s=>{$('msg').textContent=s;$('msg').style.display='block'};
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options});const j=await r.json();if(!r.ok){const e=Error(j.error||('HTTP '+r.status));e.status=r.status;throw e;}return j;}
@@ -485,7 +694,7 @@ function appendTrend(element,channel,index){
  arrow.textContent={up:'↑',down:'↓',flat:'→'}[direction];arrow.title=label;arrow.setAttribute('role','img');arrow.setAttribute('aria-label',label);element.append(arrow);
 }
 async function refresh(){if(busy)return;try{
- const s=adminSession&&location.pathname==='/config.html'?await adminApi('/api/status'):await api('/api/status');csrf=s.csrf;if(s.historyTime===false&&Date.now()-clockSyncAttempt>300000){clockSyncAttempt=Date.now();api('/api/history/time',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({time:Math.floor(Date.now()/1000)})}).catch(()=>{});}currentThermostatMode=!!s.thermostatMode;latestThermo=s.thermostat;
+ const s=adminSession&&location.pathname==='/config.html'?await adminApi('/api/status'):await api('/api/status');orbitShowPower(s);csrf=s.csrf;if(s.historyTime===false&&Date.now()-clockSyncAttempt>300000){clockSyncAttempt=Date.now();api('/api/history/time',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({time:Math.floor(Date.now()/1000)})}).catch(()=>{});}currentThermostatMode=!!s.thermostatMode;latestThermo=s.thermostat;
  if($('settingsArea').hidden&&$('historyArea').hidden&&$('helpArea').hidden&&$('sensorArea').hidden){$('dashboardArea').hidden=currentThermostatMode;$('thermostatView').hidden=!currentThermostatMode;}
  renderThermostat(latestThermo);
  for(const [id,index] of [['supplyTemperature',3],['returnTemperature',4]]){const c=s.channels[index];$(id).textContent=c&&c.valid?c.value.toFixed(1)+' °C':'Sem leitura';}
@@ -505,7 +714,7 @@ async function refresh(){if(busy)return;try{
  $('roms').textContent=(s.roms||[]).join(', ')||'Nenhuma; configura o GPIO e reinicia';
  $('hardwareRoms').textContent=$('roms').textContent;
  const log=(s.telegrams||[]).join('\n')||'Ainda não foram recebidos telegramas';$('telegrams').textContent=log;if(adminSession&&location.pathname==='/config.html')$('knxConsole').textContent=log;return s;
- }catch(e){$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
+ }catch(e){orbitShowPower(null);$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
 }
 let webMcpController=null;
 function webMcpSchema(properties,required=Object.keys(properties)){return {type:'object',properties,required,additionalProperties:false};}

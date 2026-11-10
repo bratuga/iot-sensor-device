@@ -138,6 +138,15 @@ struct Runtime {
       if(!on && armed){pauseActive=pauseStarted=true;pauseAt=now;}
     }
   }
+  // Under a persistent master OFF, an external ON must cause a fresh OFF
+  // command. nextCommand still protects the pump-before-valves sequence.
+  void reportWhileOff(unsigned i,bool on,uint32_t now) {
+    report(i,on,now);
+    if(!active(i))return;
+    if(i<Pump)external[i]=false;
+    auto &a=output[i];
+    if(on&&!a.command){a.sent=a.acknowledged=a.feedbackForCommand=false;a.changed=now;}
+  }
   // Feedback can precede the tunnel ACK. Keep it, but do not confirm the
   // electrical state until both have arrived for the current command.
   // Retain unchanged electrical states within a connection; changes and network
