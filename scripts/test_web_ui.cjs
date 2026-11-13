@@ -30,7 +30,17 @@ assert(d.getElementById('rooms').textContent.includes('21,5'));assert(d.querySel
 assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'43%');
 assert.equal(d.querySelector('#rooms .setpoint-value').textContent,'23,0 °C');
 assert.equal(d.querySelector('#rooms .status').title,d.querySelector('#rooms .status').textContent);
-assert.equal(d.querySelector('.orbit-rail #viewSettings').getAttribute('aria-label'),'Configurações');
+assert.deepEqual([...d.querySelectorAll('.orbit-nav a')].map(a=>a.textContent),['Painel','Sensores','Histórico','Configuração']);
+assert(d.querySelector('footer #viewHelp'));
+d.querySelector('#viewHelp').click();assert.equal(w.location.hash,'#ajuda');assert.equal(d.querySelector('#viewHelp').getAttribute('aria-current'),'page');assert(!d.querySelector('#helpArea').hidden);
+d.querySelector('#viewPanel').click();assert.equal(w.location.hash,'#painel');assert.equal(d.querySelector('#viewPanel').getAttribute('aria-current'),'page');
+w.history.replaceState(null,'','/config.html#hardware');
+w.dispatchEvent(new w.HashChangeEvent('hashchange'));
+assert(!d.querySelector('#tab-hardware').hidden);
+const hardwareTab=d.querySelector('[data-tab=hardware]');
+hardwareTab.dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowRight',cancelable:true}));
+assert.equal(w.location.hash,'#knx');assert(!d.querySelector('#tab-knx').hidden);assert.equal(hardwareTab.tabIndex,-1);
+w.history.replaceState(null,'','/#painel');
 w.eval('heatingPlan.control.rooms[0].target=16;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'0%');
 w.eval('heatingPlan.control.rooms[0].target=30;renderHeatStatus()');assert.equal(d.querySelector('#rooms .room-thermostat').style.getPropertyValue('--ring-fill'),'86%');
 console.log('PASS navigation actions and setpoint ring scale 16–30 °C');
