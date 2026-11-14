@@ -17,7 +17,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
 .orbit-power-area>#railPower{
  --rail-ring:var(--orbit-accent);--rail-fill:0%;
  position:relative;display:grid;place-items:center;flex:none;
- width:118px;height:118px;min-height:0;margin:0 auto;padding:0;
+ width:96px;height:96px;min-height:0;margin:0 auto;padding:0;
  border:0;border-radius:50%;background:var(--orbit-bg);color:var(--orbit-ink);
  box-shadow:0 0 0 7px color-mix(in srgb,var(--rail-ring),transparent 94%);
  touch-action:none;user-select:none;-webkit-touch-callout:none;
@@ -43,19 +43,16 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
 #railPower[data-state=critical] .rail-power-ring{animation:rail-power-pulse .8s ease-in-out infinite}
 #railPower:is([data-state=off],[data-state=offline]) .rail-power-ring{opacity:.4}
 .rail-power-progress{background:conic-gradient(var(--rail-ring) var(--rail-fill),transparent var(--rail-fill))}
-.rail-power-metrics:not([hidden]){display:grid;gap:3px}
-.rail-power-metrics>span{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
-.orbit-power-area .rail-power-icon{width:22px;height:22px;color:var(--orbit-muted)}
+.rail-power-metrics:not([hidden]){display:grid;gap:3px;max-width:72px}
+.rail-power-metrics>span{display:flex;align-items:center;gap:4px;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.orbit-power-area .rail-power-icon{width:16px;height:16px;flex:none;color:var(--orbit-muted)}
 .rail-power-centre{max-width:76px;font-size:12px;line-height:1.2;text-align:center;overflow-wrap:anywhere}
 .rail-power-centre[data-symbol]{color:var(--rail-ring);font-size:30px}
- .rail-power-caption{min-width:0;color:var(--orbit-muted);font-size:11px;line-height:1.35}
- .rail-power-caption strong{display:block;color:var(--orbit-ink);font-weight:600}
- .rail-power-status{display:block;color:var(--orbit-muted)}
- .rail-power-caption small{display:block;margin-top:2px;color:inherit;font-size:inherit}
- .rail-power-notice{display:block;margin-top:4px;overflow-wrap:anywhere}
+ .rail-power-caption{min-width:0;min-height:44px;color:var(--orbit-muted);font-size:11px;line-height:1.35}
+ .rail-power-notice{display:block;overflow-wrap:anywhere}
  .rail-power-notice[data-kind=error]{color:var(--red)}
  .rail-power-notice[data-kind=pending]{color:var(--orange)}
- .rail-power-notice:empty{margin-top:0}
+ .rail-power-notice:empty{display:none}
  @keyframes rail-power-rotate{to{transform:rotate(360deg)}}
  @keyframes rail-power-pulse{0%,100%{opacity:1}50%{opacity:.27}}
  @media(prefers-reduced-motion:reduce){
@@ -70,7 +67,7 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
   #railPower :is(.rail-power-track,.rail-power-ring,.rail-power-progress){
    mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
   }
-  .rail-power-metrics:not([hidden]){gap:2px}
+  .rail-power-metrics:not([hidden]){gap:2px;max-width:59px}
   .rail-power-metrics>span{gap:3px;font-size:11px}
   .orbit-power-area .rail-power-icon{width:14px;height:14px}
   .rail-power-centre{max-width:57px;font-size:10px}
@@ -101,7 +98,7 @@ body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-li
 .orbit.light :is(#heating,#thermostatView){--panel:#fff;--line:#bacfc9;--accent:#18755f;--orbit-bg:#edf4f2;--orbit-raised:#deede8;--orbit-line:#bacfc9;--orbit-ink:#18362f;--orbit-muted:#516b62;--orbit-accent:#18755f}
 .orbit .shell{max-width:1380px;margin:0 auto;padding:24px 0;min-width:0}
 .orbit-rail{position:fixed;inset:0 auto 0 0;width:142px;padding:24px 12px;background:var(--orbit-panel);border-right:1px solid var(--orbit-line);display:flex;flex-direction:column;gap:12px;z-index:30;overflow-y:auto}
-.orbit-logo{text-align:center;color:var(--orbit-muted);letter-spacing:.22em;font-size:11px;font-weight:750;margin-bottom:12px}
+.orbit-logo{text-align:center;color:var(--orbit-ink);font-size:13px;font-weight:650;overflow-wrap:anywhere;margin-bottom:12px}
 .orbit-power-area{display:grid;justify-items:center;gap:12px;text-align:center}
 .orbit-nav{display:grid;gap:4px}
 .orbit-nav a{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px;border:1px solid transparent;border-radius:8px;color:var(--orbit-muted);text-decoration:none;font-size:12px}
@@ -144,6 +141,7 @@ body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-li
  body.orbit{padding:0 14px calc(var(--bar-height) + 18px + env(safe-area-inset-bottom))}
  .orbit-rail{position:static;width:auto;padding:16px 0 0;border:0;background:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;overflow:visible}
  .orbit-logo{display:none}
+ .rail-power-caption{min-height:0}
  .orbit-power-area{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;gap:10px;text-align:left}
  .orbit-rail .orbit-theme{margin-top:16px}
  .orbit-nav{position:fixed;inset:auto 0 0;z-index:30;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;min-height:var(--bar-height);padding:4px 6px calc(4px + env(safe-area-inset-bottom));border-top:1px solid var(--orbit-line);background:var(--orbit-panel)}
@@ -167,7 +165,20 @@ body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-li
 .orbit-switch[aria-checked=true] .orbit-switch-track::after{transform:translateX(16px)}
 .sensor-trend{font-size:.85em;margin-left:.35em;color:var(--orbit-muted)}.sensor-trend[data-direction=up]{color:#f29d70}.sensor-trend[data-direction=down]{color:#74c8ee}
 .collector-pump-detail:empty{display:none}
-</style></head><body class="orbit"><div class="orbit-rail"><div class="orbit-logo" aria-hidden="true">ORBIT</div><div class="orbit-power-area"><button type="button" id="railPower" class="rail-power" data-state="offline" aria-label="Comando geral · a aguardar estado" aria-disabled="true">—</button><div class="rail-power-caption"><strong>Comando geral</strong><span class="rail-power-status" id="railPowerStatus">A aguardar estado</span><small>Mantém premido 1,5 s</small><span class="rail-power-notice" id="railPowerNotice" role="status"></span></div></div>
+/* Fit the readings and status inside the existing thermostat faces. */
+#rooms .dial,#thermoDial{container-type:inline-size}
+#thermoDial{max-width:100%}
+#rooms .dial-content,#thermoDial .dial-content{width:72%;min-width:0;gap:2px}
+#rooms .dial-content .current,#thermoDial .dial-content .current{margin:0;line-height:1;white-space:nowrap}
+#rooms .dial-content .current{font-size:min(1.65rem,22cqi)}
+#thermoDial .dial-content .current{font-size:min(2.15rem,19cqi)}
+#rooms .dial-content .current small{font-size:min(.62rem,8cqi)}
+#rooms .dial-content .heat-state,#thermoDial .dial-content .heat-state{justify-content:center;width:100%;min-height:0;min-width:0;line-height:1.12;white-space:normal;overflow-wrap:anywhere}
+#rooms .dial-content .heat-state{font-size:min(.62rem,8cqi)}
+#thermoDial .dial-content .heat-state{font-size:min(.72rem,8cqi)}
+#rooms .dial-content .heat-state .flame{flex:0 0 min(10px,8cqi);width:min(10px,8cqi)}
+#rooms .dial-content .heat-state span{min-width:0}
+</style></head><body class="orbit"><div class="orbit-rail"><div class="orbit-logo" id="railDeviceName">Sensor KNX</div><div class="orbit-power-area"><button type="button" id="railPower" class="rail-power" data-state="offline" aria-label="Comando geral · a aguardar estado" aria-disabled="true">—</button><div class="rail-power-caption"><span class="rail-power-notice" id="railPowerNotice" role="status"></span></div></div>
 <nav aria-label="Navegação principal" class="orbit-nav">
 <a id="viewPanel" data-view="dashboard" href="/#painel"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>Painel</a>
 <a id="viewSensors" data-view="sensors" href="/#sensores"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/></svg>Sensores</a>
@@ -195,7 +206,7 @@ body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-li
 <section class="login-panel" id="loginPanel"><h2>Configuração</h2><p>Inicia sessão para editar as configurações.</p><form id="loginForm"><label>Utilizador<input autocomplete="username" id="loginUser" required="" value="admin"/></label><label>Palavra-passe<input autocomplete="current-password" id="loginPassword" required="" type="password"/></label><button type="submit">Entrar</button></form><p id="loginError" role="alert"></p></section>
 <div hidden="" id="privateSettings"><button type="button" id="logoutAdmin">Sair</button>
 <nav aria-label="Áreas de configuração" class="settings-tabs" role="tablist"><button id="settings-tab-config" aria-controls="tab-config" aria-selected="false" data-tab="config" role="tab" type="button">Técnico</button><button id="settings-tab-diagnostics" aria-controls="tab-diagnostics" aria-selected="false" data-tab="diagnostics" role="tab" type="button">Diagnóstico</button><button id="settings-tab-hardware" aria-controls="tab-hardware" aria-selected="false" data-tab="hardware" role="tab" type="button">Hardware</button><button id="settings-tab-knx" aria-controls="tab-knx" aria-selected="false" data-tab="knx" role="tab" type="button">KNX</button><button id="settings-tab-features" aria-controls="tab-features" aria-selected="false" data-tab="features" role="tab" type="button">Configurações</button></nav>
-<form id="settings" novalidate=""><div class="tab-panel" hidden="" id="tab-diagnostics" role="tabpanel" aria-labelledby="settings-tab-diagnostics"><section><h2>Registos</h2><button id="refreshDiagnostics" type="button">Atualizar</button><pre id="orbitDiagnostics"></pre><pre id="orbitLogs"></pre><p>Registo em RAM; este firmware não dispõe de cartão SD.</p></section><section id="diagnosticSection"><h2>Estado e diagnóstico</h2><pre id="status"></pre><details><summary>Telegramas recebidos</summary><pre id="telegrams">Sem dados</pre></details><p>Sondas detetadas: <span id="roms">—</span></p></section></div><div class="tab-panel" id="tab-features" role="tabpanel" aria-labelledby="settings-tab-features">
+<form id="settings" novalidate=""><div class="tab-panel" hidden="" id="tab-diagnostics" role="tabpanel" aria-labelledby="settings-tab-diagnostics"><section><h2>Registos</h2><button id="refreshDiagnostics" type="button">Atualizar</button><p id="diagnosticsMessage" role="status"></p><pre id="orbitDiagnostics"></pre><pre id="orbitLogs"></pre><p>Registo em RAM; este firmware não dispõe de cartão SD.</p></section><section id="diagnosticSection"><h2>Estado e diagnóstico</h2><pre id="status"></pre><details><summary>Telegramas recebidos</summary><pre id="telegrams">Sem dados</pre></details><p>Sondas detetadas: <span id="roms">—</span></p></section></div><div class="tab-panel" id="tab-features" role="tabpanel" aria-labelledby="settings-tab-features">
 <section><h2>Função principal</h2><p>Escolhe uma função exclusiva. O mapa do coletor permanece guardado ao mudar para termóstato.</p><label>Modo do dispositivo<select id="profileMode"><option value="collector">Controlo de piso radiante</option><option value="thermostat">Termóstato de divisão</option></select></label></section>
 <div class="feature-grid">
 <section class="feature-tile" id="collectorSettings"><h2>Controlo de piso radiante</h2><p>Primeiro cria as divisões e associa circuitos. Os endereços de grupo aparecem no separador KNX.</p><div class="grid" id="heatSettings"></div><fieldset><legend>Proteção térmica da bomba</legend><div class="plan-fields" id="pumpGuardSettings"></div><p class="hint">Sonda 1 mede a entrada de água quente; sonda 2 mede o retorno. A proteção só atua com uma leitura DS18B20 recente.</p></fieldset><p><button id="addRoom" type="button">Adicionar divisão</button></p><div class="plan-fields" id="zoneFields"></div><h3>Posições do coletor</h3><div class="plan-fields" id="circuitFields"></div><p><button id="saveHeating" type="button">Guardar mapa e reiniciar</button></p><small>O ESP para a bomba e os circuitos, aguarda feedback OFF, grava o mapa e reinicia.</small></section>
@@ -221,7 +232,7 @@ body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-li
 <article class="card ntp-panel" id="ntpPanel"><span class="eyebrow">HORA</span><h2>NTP e relógio local</h2><div class="ntp-row"><label for="ntpServer">Servidor NTP</label><input id="ntpServer" maxlength="63" value="pool.ntp.org"/></div><div class="ntp-row"><label for="ntpSecondary">Servidor alternativo</label><input id="ntpSecondary" maxlength="63" value="time.cloudflare.com"/></div><div class="ntp-row"><label for="timezone">Fuso horário</label><select id="timezone"><option value="WET0WEST,M3.5.0/1,M10.5.0">Europe/Lisbon</option><option value="UTC0">UTC</option></select></div><div class="ntp-summary"><div><small>Hora local</small><b id="rtcTimeValid">—</b></div><div><small>RTC externo</small><b id="rtcAvailable">—</b></div><div><small>Histórico interno</small><b id="sdAvailable">—</b></div></div><button type="button" id="syncTime">Sincronizar agora</button><p class="ntp-hint">Utiliza os servidores e o fuso guardados. Guarde primeiro as alterações.</p><p id="timeSyncState" role="status" aria-live="polite"></p></article><section><h2>Backup e restauro</h2><p>O backup inclui a configuração e o mapa KNX, sem passwords. O restauro conserva as passwords atuais e reinicia.</p><button id="export" type="button">Descarregar backup</button><label>Ficheiro de backup JSON<input accept=".json,application/json" id="restoreFile" type="file"/></label><button id="restore" type="button">Restaurar configuração</button></section>
 <section><h2>Atualização de firmware</h2><p>O firmware deve identificar este equipamento e perfil. Ficheiros antigos sem identificação são recusados. Mantém a alimentação.</p><input accept=".bin" id="firmware" type="file"/><p><button id="update" type="button">Instalar atualização OTA</button></p><progress hidden="" id="progress" max="100" value="0"></progress></section>
 <section><h2>Administração</h2><label>Nova palavra-passe<input autocomplete="new-password" id="newAdminPassword" maxlength="63" minlength="10" type="password"/></label><button id="changeAdminPassword" type="button">Alterar palavra-passe</button> <button id="restartDevice" type="button">Reiniciar dispositivo</button></section></div>
-<div class="settings-actions"><button type="submit">Guardar configurações e reiniciar</button><p>Ao gravar, o ESP reinicia e confirma OFF no arranque pela ligação KNX configurada.</p></div></form>
+<div class="settings-actions" id="settingsActions"><button type="submit">Guardar configurações e reiniciar</button><p>Ao gravar, o ESP reinicia e confirma OFF no arranque pela ligação KNX configurada.</p></div></form>
 </div></main><footer class="orbit-footer"><span id="orbitVersion">A consultar firmware…</span><a id="viewHelp" data-view="help" href="/#ajuda">Ajuda</a></footer>
 <script data-orbit-controls>// Orbit control adapted from bratuga/iot-vmc-controler main 754e3b0.
 function createOrbitPower(sendPower){
@@ -240,9 +251,7 @@ function createOrbitPower(sendPower){
   const error=railError||(state==='critical'?label:'');
   const pending=railPending?'A enviar comando…':state==='warning'?label:railConfirmTarget!==null?'A aguardar confirmação':'';
   vmcEl('railPowerNotice').dataset.kind=error?'error':pending?'pending':'';
-  const notice=error||pending||(state==='offline'?label:'');
-  vmcText('railPowerNotice',notice);
-  vmcText('railPowerStatus',notice?'':state==='off'?'Saídas desligadas':'Saídas autorizadas');
+  vmcText('railPowerNotice',error||pending);
  }
  function railPowerState(state){
   if(typeof state?.powerEnabled!=='boolean')return ['offline','Sem ligação'];
@@ -409,11 +418,14 @@ const settingsHashes={config:'tecnico',diagnostics:'diagnostico',hardware:'hardw
 const settingsTabs=Array.from(document.querySelectorAll('.settings-tabs [role="tab"]'));
 function tabFromHash(){return Object.keys(settingsHashes).find(name=>'#'+settingsHashes[name]===location.hash)||'config';}
 function selectTab(name){
+ const enteringDiagnostics=name==='diagnostics'&&$('tab-diagnostics').hidden;
+ $('settingsActions').hidden=name==='diagnostics';
  for(const b of settingsTabs){
   const selected=b.dataset.tab===name,panel=$(b.getAttribute('aria-controls'));
   b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1;
   panel.hidden=!selected;
  }
+ if(enteringDiagnostics&&adminSession&&!$('privateSettings').hidden)orbitDiagnostics();
 }
 function goToTab(name){
  selectTab(name);
@@ -446,7 +458,7 @@ $('validateKnx').onclick=()=>{selectTab('knx');validateKnxFields();};
 $('sensorKnxSettings').onclick=()=>{visibility();goToTab('knx');const first=Array.from({length:5},(_,i)=>i).find(i=>$('channelEnabled'+i).checked);if(first!==undefined)$((first)+'_group').focus();else show('Seleciona primeiro um sensor para enviar ao KNX.');};
 
 function dashboard(){view('dashboard');}
-async function openSettings(){view('settings');if(location.pathname!='/config.html')return;$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();selectTab(tabFromHash());$('loginPanel').hidden=true;$('privateSettings').hidden=false;}catch(e){$('loginError').textContent=e.message;}}
+async function openSettings(){view('settings');if(location.pathname!='/config.html')return;$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();const tab=tabFromHash();selectTab(tab);$('loginPanel').hidden=true;$('privateSettings').hidden=false;if(tab==='diagnostics')orbitDiagnostics();}catch(e){$('loginError').textContent=e.message;}}
 $('backDashboard').onclick=dashboard;
 $('restartDevice').onclick=async()=>{if(busy||!confirm('Reiniciar o dispositivo? O coletor aguarda confirmação das saídas desligadas.'))return;busy=true;try{const result=await adminApi('/api/restart',{method:'POST',headers:{'X-CSRF-Token':csrf}});if(result.pending)await waitForSafeSave(()=>result,'A reiniciar o dispositivo…');else show('A reiniciar o dispositivo…');}catch(e){show('Não foi possível reiniciar: '+e.message);}finally{busy=false;}};
 let lastHistoryRows=null,historyPosition=1;
@@ -779,7 +791,8 @@ async function refresh(){if(busy)return;try{
  if($('settingsArea').hidden&&$('historyArea').hidden&&$('helpArea').hidden&&$('sensorArea').hidden){$('dashboardArea').hidden=currentThermostatMode;$('thermostatView').hidden=!currentThermostatMode;}
  renderThermostat(latestThermo);
  for(const [id,index] of [['supplyTemperature',3],['returnTemperature',4]]){const c=s.channels[index];$(id).textContent=c&&c.valid?c.value.toFixed(1)+' °C':'Sem leitura';}
- $('deviceName').textContent=s.name||'Sensor KNX';document.title=(s.name||'Sensor KNX')+' · MySmartHouse';
+ const deviceName=s.name||'Sensor KNX';
+ $('deviceName').textContent=deviceName;$('railDeviceName').textContent=deviceName;document.title=deviceName+' · MySmartHouse';
  $('orbitVersion').textContent='Firmware '+(s.firmware||'—')+(s.build?' · '+s.build:'');$('connection').textContent=s.ip+' · KNX '+s.knx;
  $('status').textContent='Wi-Fi: '+s.rssi+' dBm | memória livre: '+s.freeHeap+' bytes\nUptime: '+Math.floor(s.uptimeMs/1000)+' s | BME280: '+(s.bme?'detetado':'ausente/desativado')+' | OLED: '+(s.oled?'ativo':'ausente/desativado')+'\nI²C principal: '+(s.i2cMain||'não iniciado')+' | I²C OLED: '+(s.i2cOled||'não iniciado')+'\nKNX individual: '+s.individual+' | enviados: '+s.sent+' | confirmados: '+s.acked+' | falhas: '+s.failed+'\n'+s.lastEvent;
  $('readings').textContent='';for(const [i,name]of [[0,'Temperatura'],[1,'Humidade'],[2,'Pressão'],[-1,'Hora']]){const d=document.createElement('div');d.className='card';const title=document.createElement('div'),v=document.createElement('div');title.textContent=name;v.className='value';if(i<0){v.id='localClock';v.title='Hora local do dispositivo que mostra esta página';}else{const c=s.channels[i];v.textContent=sensorDisplay(c,i);appendTrend(v,c,i);}d.append(title,v);$('readings').append(d);}updateClock();
@@ -899,7 +912,23 @@ $('scanWifi').onclick=async()=>{
  }catch(e){state.textContent=e.message;show(e.message);}finally{button.disabled=false;}
 };
 $('wifiNetworks').onchange=()=>{if($('wifiNetworks').value)$('ssid').value=$('wifiNetworks').value;};
-async function orbitDiagnostics(){try{const r=await adminApi('/api/diagnostics');$('orbitDiagnostics').textContent=r.version+' · '+r.build+'\nUptime '+r.uptime+' s · RAM livre '+r.freeHeap;$('orbitLogs').textContent=r.logs;$('knxConsole').textContent=r.telegrams.join('\n');$('orbitVersion').textContent='Firmware '+r.version+' · '+r.build}catch(e){show(e.message)}}
+async function orbitDiagnostics(){
+ const button=$('refreshDiagnostics'),message=$('diagnosticsMessage');
+ if(!adminSession||$('privateSettings').hidden||button.disabled)return;
+ button.disabled=true;
+ message.textContent='A carregar registos…';
+ try{
+  const data=await adminApi('/api/diagnostics');
+  $('orbitDiagnostics').textContent=data.version+' · '+data.build+'\nUptime '+data.uptime+' s · RAM livre '+data.freeHeap;
+  const logs=data.logs||'';
+  $('orbitLogs').textContent=logs;
+  $('knxConsole').textContent=(data.telegrams||[]).join('\n');
+  $('orbitVersion').textContent='Firmware '+data.version+' · '+data.build;
+  message.textContent=logs.trim()?'':'Ainda não há registos.';
+ }catch(error){
+  message.textContent='Não foi possível carregar os registos: '+error.message;
+ }finally{button.disabled=false;}
+}
 $('refreshDiagnostics').onclick=orbitDiagnostics;
 $('changeAdminPassword').onclick=async()=>{try{await adminApi('/api/admin/password',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({password:$('newAdminPassword').value})});adminSession='';sessionStorage.removeItem('adminSession');location.reload()}catch(e){show(e.message)}};
 selectTab(tabFromHash());
