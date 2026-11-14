@@ -49,7 +49,8 @@ const epoch = Math.floor(Date.now()/1000);
 async function device(context, mode = 'collector') {
   const requests = [], violations = [];
   const thermostat = { name: 'Quarto', on: true, demand: true, setpoint: 22, temperature: 20.5, temperatureValid: true, pending: false, knxConnected: true };
-  let loggedIn = false, scans = 0;
+  let loggedIn = false, scans = 0, powerAttempts = 0;
+  const power={powerEnabled:true,powerCanToggle:true,powerLevel:'ok',powerLabel:'',cpuMHz:240,heapUsePct:42};
   await context.route(origin+'/**', async route => {
     const req = route.request(), pathname = new URL(req.url()).pathname;
     if (pathname === '/' || pathname === '/config.html') return route.fulfill({ contentType:'text/html; charset=utf-8', body:html });
@@ -68,13 +69,17 @@ async function device(context, mode = 'collector') {
     switch(pathname) {
       case '/api/status': return json({
         name:config.name, build:'browser fixture', firmware:'0.3.20-orbit', ip:'192.168.1.80', csrf:'orbit-test-csrf', historyTime:true,
-        knx:'ligado', uptimeMs:20000, rssi:-58, thermostatMode:mode==='thermostat', thermostat,
+        knx:'ligado', uptimeMs:20000, rssi:-58, thermostatMode:mode==='thermostat', thermostat,...power,
         channels:config.channels.map((c,i)=>({name:c.name,valid:i!==4,value:[21.5,65,100632,31.4,null][i],unit:['°C','%','Pa','°C','°C'][i],trend30m:[0.5,-2][i]})),
         relays:config.relays.map(r=>({name:r.name,enabled:r.enabled,on:true,feedbackPending:false})),
         inputs:config.inputs.map(i=>({name:i.name,enabled:i.enabled,active:true})),
         showDiagnostics:admin, roms:admin?['28FF000012345678']:[], telegrams:admin?logs:[],
         ...(admin?{individual:'1.1.203',freeHeap:124000,sent:12,acked:12,failed:0,lastEvent:'KNX ligado',bme:true,oled:false}:{}),
       });
+      case '/api/power':
+        if(++powerAttempts===1)return json({error:'Operação em curso'},409);
+        Object.assign(power,{powerEnabled:body.enabled,powerCanToggle:false,powerLevel:'warning',powerLabel:'A parar'});
+        return json({accepted:true});
       case '/api/history': return json({synced:true,storage:true,records:[[epoch-171200,30,25,21,64,0],[epoch-170000,31,26,21,65,1],[epoch-86200,31,25,22,65,1],[epoch-85000,32,25,22,66,0],[epoch-2400,32,25,22,65,0],[epoch-1200,33,24,23,64,1]]});
       case '/api/heating/status': return json(layout);
       case '/api/heating/layout': return json(post?{pending:true}:layout,post?202:200);
@@ -101,7 +106,7 @@ async function device(context, mode = 'collector') {
       default: violations.push('Unexpected request '+pathname);return json({error:'Mock: not found'},404);
     }
   });
-  return { requests, violations };
+  return { requests, violations, power };
 }
 
 async function checkLayout(page, label) {
@@ -111,7 +116,7 @@ async function checkLayout(page, label) {
       width:document.documentElement.clientWidth,
       scroll:document.documentElement.scrollWidth,
       mains:mains.map(e=>e.id),
-      nav:[...document.querySelectorAll('.orbit-rail [data-view]')].map(el=>{
+      nav:[...document.querySelectorAll('.orbit-nav [data-view]')].map(el=>{
         const r=el.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1;
       }),
       duplicates:[...document.querySelectorAll('[id]')].map(e=>e.id).filter((id,i,ids)=>ids.indexOf(id)!==i),
@@ -125,6 +130,7 @@ async function checkLayout(page, label) {
   assert.deepEqual(shape.duplicates,[],label+': duplicate IDs');
   assert(shape.scroll<=shape.width+1,label+': horizontal overflow '+JSON.stringify(shape));
   assert.deepEqual(shape.overflowing,[],label+': controls outside viewport');
+  assert.equal(shape.nav.length,4,label+': only four navigation destinations');
   assert(shape.nav.every(Boolean),label+': navigation outside viewport');
   if(process.env.ORBIT_SCREENSHOTS)await page.screenshot({path:path.join(process.env.ORBIT_SCREENSHOTS,label+'.png'),animations:'disabled'});
 }
@@ -155,6 +161,33 @@ async function openTab(page, name) {
       assert.equal(await page.locator('#toggleHeat').getAttribute('aria-checked'),'true');
       assert.doesNotMatch(await page.locator('#collectorCard').innerText(),/Feedback ON KNX confirmado|Tempo de serviço ·/);
       await checkLayout(page,width+'-painel');
+      if(width===390){
+        const button=page.locator('#railPower'),theme=page.locator('#orbitTheme'),notice=page.locator('#railPowerNotice');
+        const box=await button.boundingBox(),navBox=await page.locator('.orbit-nav').boundingBox();
+        assert(box.width>=76&&box.height>=76&&box.y+box.height<navBox.y);
+        assert((await theme.boundingBox()).y<navBox.y);
+        await theme.click();
+        assert.equal(await theme.getAttribute('aria-checked'),'true');
+        assert.equal(await page.locator('body').evaluate(el=>getComputedStyle(el).getPropertyValue('--orbit-accent').trim()),'#18755f');
+        await page.reload();
+        await visible(page,'#rooms .room-thermostat');
+        assert.equal(await theme.getAttribute('aria-checked'),'true');
+        await button.hover();await page.mouse.down();await page.waitForTimeout(100);await page.mouse.up();
+        assert(!sim.requests.some(x=>x.pathname==='/api/power'));
+        await button.hover();await page.mouse.down();
+        await notice.filter({hasText:'Operação em curso'}).waitFor({state:'visible'});
+        await page.mouse.up();
+        const feedback=await notice.boundingBox();assert(feedback.width>20&&feedback.height>10&&feedback.y<navBox.y);
+        assert.equal(await button.getAttribute('data-state'),'ok');
+        await button.hover();await page.mouse.down();
+        await notice.filter({hasText:'A parar'}).waitFor({state:'visible'});
+        await page.mouse.up();
+        assert.equal(await button.getAttribute('data-state'),'warning');
+        Object.assign(sim.power,{powerCanToggle:true,powerLevel:'ok',powerLabel:''});
+        await page.waitForFunction(()=>document.getElementById('railPower').dataset.state==='off');
+        assert.equal(await notice.textContent(),'');
+        await theme.click();
+      }
       if(width===1440){
         await Promise.all([page.waitForResponse(r=>r.url().endsWith('/api/heating/control')&&r.request().method()==='POST'),page.locator('#toggleHeat').click()]);
         await page.waitForFunction(()=>!busy);

@@ -22,6 +22,24 @@ as proteções térmicas e a gravação da histerese a uma casa decimal.
   depois de confirmar OFF da bomba e das válvulas. Uma falha de segurança
   cancela a retoma. A confirmação ON da bomba é registada nos logs.
 
+## Uniformização do painel
+
+No telemóvel, a barra inferior apresenta Painel, Sensores, Histórico e
+Configuração. O comando geral de 76 px e o tema ficam no topo. A resposta ao
+comando aparece junto ao círculo, incluindo recusas, paragem pendente e
+ausência de confirmação. A ajuda continua pública no rodapé, junto da versão
+e da data de compilação fornecidas pelo dispositivo.
+
+Na configuração, os separadores têm ligações diretas em
+`/config.html#tecnico`, `#diagnostico`, `#hardware`, `#knx` e
+`#configuracoes`. As setas, Home e End mudam de separador; o formulário
+mantém as edições ao alternar. As mesmas operações de administração continuam
+a exigir sessão. NTP mantém o servidor e o fuso configuráveis e sincroniza
+no arranque; o OTA mantém o carregamento local do ficheiro de firmware.
+
+O OLED SSD1306 opcional (128 × 32 ou 128 × 64) conserva a leitura em foco e
+as mensagens de AP e KNX. O novo layout refere-se ao painel web.
+
 ## Validação
 
 A compilação `pio run -e esp32` passou: 59,3% da partição de aplicação

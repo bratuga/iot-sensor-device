@@ -1,5 +1,7 @@
 #include "OtaUpload.h"
 #include "OrbitTime.h"
+#include "OrbitResources.h"
+#include "PowerState.h"
 #include "OrbitLog.h"
 #include <DNSServer.h>
 #include "Config.h"
@@ -86,6 +88,25 @@ String heatingZones[MaxRooms];
 heating::Runtime heat;
 sensor::ReadingTrend ambientTrend[2];
 bool heatingRequested=false, heatingResumePending=false;
+device::PowerState powerState;
+bool powerStorageOk=true;
+bool powerThermoOffSent=false,powerThermoOffSeen=false,powerThermoOffAck=false;
+uint32_t powerStoppedAt=0;
+bool savePowerState(const device::PowerState& next){
+ Preferences prefs;
+ powerStorageOk=prefs.begin("orbit-power",false);
+ if(powerStorageOk){powerStorageOk=prefs.putBytes("state",&next,sizeof(next))==sizeof(next);prefs.end();}
+ return powerStorageOk;
+}
+void loadPowerState(){
+ Preferences prefs;
+ if(!prefs.begin("orbit-power",false)){powerState.paused=1;powerStorageOk=false;return;}
+ if(prefs.isKey("state")&&(prefs.getBytesLength("state")!=sizeof(powerState)||
+    prefs.getBytes("state",&powerState,sizeof(powerState))!=sizeof(powerState)||!powerState.valid())){
+  powerState=device::PowerState();powerState.paused=1;powerStorageOk=false;
+ }
+ prefs.end();powerStoppedAt=millis();
+}
 bool persistHeatingRequest(bool requested) {
   Preferences prefs;
   if(!prefs.begin("heating",false)) return false;
@@ -189,7 +210,9 @@ bool thermoDemand=false, thermoSentDemand=false, thermoReported=false, thermoFee
 bool thermoDirty=true, thermoSetpointDirty=true, thermoPending=false, thermoFailed=false;
 bool thermoSaveOffCommandSent=false, thermoSaveOffFeedbackSeen=false;
 uint32_t thermoCommandAt=0, thermoSendAt=0, thermoSetpointAt=0;
-constexpr uint32_t ThermoDemandToken=0x700001u, ThermoSetpointToken=0x700002u;
+constexpr uint32_t ThermoSetpointToken=0x700002u;
+uint32_t thermoSequence=0,thermoPendingToken=0;
+uint32_t nextThermoToken(){thermoSequence=(thermoSequence+1)&0x00ffffffu;return 0x74000000u|thermoSequence;}
 void thermostatLoop(uint32_t now);
 void inputLoop(uint32_t now);
 void setRelay(unsigned i, bool on);
@@ -230,8 +253,10 @@ class Events : public knxip::Listener {
   void onTelegram(const knxip::Telegram &) override;
   void onEvent(knxip::Event e, uint16_t detail) override;
   void onSent(uint32_t token, bool ok) override {
-    if (token == ThermoDemandToken) {
-      thermoPending = ok && !(thermoFeedbackKnown && thermoReported==thermoSentDemand);
+    if (token && token == thermoPendingToken) {
+      if(powerState.paused&&!thermoSentDemand)powerThermoOffAck=ok;
+      thermoPending = ok && !(thermoFeedbackKnown && thermoReported==thermoSentDemand &&
+        (!powerState.paused||powerThermoOffSeen));
       if (ok && !thermoPending) thermoDirty = thermoReported!=thermoDemand;
       thermoFailed = !ok;
       if (!ok) thermoDirty = true;
@@ -269,6 +294,7 @@ const char *stateName() {
 void Events::onEvent(knxip::Event e, uint16_t detail) {
   lastEvent = "Evento KNX " + String(int(e)) + " / " + String(detail);
   if (e == knxip::Event::Connected) {
+    thermoPendingToken=0;powerThermoOffSent=powerThermoOffSeen=powerThermoOffAck=false;
     thermoDirty = thermoSetpointDirty = true;
     thermoPending = thermoFeedbackKnown = false;
     if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&config.thermostatMode){
@@ -307,6 +333,8 @@ void Events::onTelegram(const knxip::Telegram &t) {
     bool value;
     if (t.group==feedback && t.operation!=knxip::Operation::Read && t.asBool(value)) {
       thermoReported=value;thermoFeedbackKnown=true;
+      if(powerState.paused&&powerThermoOffSent&&!value)powerThermoOffSeen=true;
+      if(powerState.paused&&value)powerThermoOffSeen=false;
       if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&
          thermoSaveOffCommandSent&&!value)thermoSaveOffFeedbackSeen=true;
       if(thermoPending && value==thermoSentDemand){thermoPending=false;thermoFailed=false;}
@@ -357,7 +385,7 @@ void Events::onTelegram(const knxip::Telegram &t) {
   }
 }
 void setRelay(unsigned i, bool on) {
-  if (i >= 4 || !config.relay[i].enabled) return;
+  if (i >= 4 || !config.relay[i].enabled || (on&&powerState.paused)) return;
   digitalWrite(config.relay[i].gpio, device::relayLevel(on, config.relay[i].activeLow) ? HIGH : LOW);
   relays[i].command(on);
 }
@@ -378,6 +406,14 @@ void initInputs() {
     inputs[i].changedAt=millis();inputs[i].dirty=true;
   }
 }
+bool powerBlocksGroup(uint16_t group){
+ if(!powerState.paused||!group)return false;
+ uint16_t configured=0;
+ if(config.thermostatMode&&sensor::parseGroup(config.thermostatDemandGroup.c_str(),configured)&&group==configured)return true;
+ if(!config.thermostatMode&&hc.enabled)for(unsigned i=0;i<9;i++)if(heat.active(i)&&hc.command[i]==group)return true;
+ for(const auto &relay:config.relay)if(relay.enabled&&sensor::parseGroup(relay.commandGroup.c_str(),configured)&&group==configured)return true;
+ return false;
+}
 void inputLoop(uint32_t now) {
   for (unsigned i=0;i<4;++i) {
     const auto &c=config.input[i];if(!c.enabled)continue;
@@ -387,13 +423,14 @@ void inputLoop(uint32_t now) {
     uint16_t group;
     if(v.dirty&&tunnel.state()==knxip::State::Connected&&
        sensor::parseGroup(c.group.c_str(),group)&&
+       !powerBlocksGroup(group)&&
        tunnel.writeBool(group,v.active,0x710000u+i)==knxip::Result::Queued)v.dirty=false;
   }
 }
 void thermostatLoop(uint32_t now) {
   if(!config.thermostatMode)return;
   bool valid=config.bmeEnabled&&fresh(0,now);
-  bool desired=thermostat::demand(config.thermostatOn,valid,thermoDemand,
+  bool desired=thermostat::demand(!powerState.paused&&config.thermostatOn,valid,thermoDemand,
     readings[0].value,config.thermostatSetpoint,config.thermostatMargin);
   if(desired!=thermoDemand){thermoDemand=desired;thermoDirty=true;thermoFailed=false;}
   if(tunnel.state()!=knxip::State::Connected)return;
@@ -408,10 +445,13 @@ void thermostatLoop(uint32_t now) {
   if(thermoPending&&sensor::elapsed(now,thermoCommandAt,30000)){
     thermoPending=false;thermoFailed=true;
   }
-  if(!thermoDirty||thermoPending||thermoFailed||!sensor::elapsed(now,thermoSendAt,1000))return;
+  if(!thermoDirty||thermoPending||(thermoFailed&&!powerState.paused)||!sensor::elapsed(now,thermoSendAt,1000))return;
   uint16_t group;
+  const uint32_t commandToken=nextThermoToken();
   if(sensor::parseGroup(config.thermostatDemandGroup.c_str(),group)&&
-     tunnel.writeBool(group,thermoDemand,ThermoDemandToken)==knxip::Result::Queued){
+     tunnel.writeBool(group,thermoDemand,commandToken)==knxip::Result::Queued){
+    thermoPendingToken=commandToken;
+    if(powerState.paused&&!thermoDemand){powerThermoOffSent=true;powerThermoOffSeen=powerThermoOffAck=false;}
     if(configSavePhase==ConfigSavePhase::Stopping&&!pendingHeatingSave&&!thermoDemand){
       thermoSaveOffCommandSent=true;
       thermoSaveOffFeedbackSeen=false;
@@ -784,9 +824,36 @@ bool heatingSafe() {
  return true;
 }
 bool thermostatSafe() {
- return !config.thermostatMode || (!config.thermostatOn && !thermoDemand &&
-         !thermoPending && thermoSaveOffCommandSent && thermoSaveOffFeedbackSeen &&
+ return !config.thermostatMode || ((!config.thermostatOn||powerState.paused) && !thermoDemand &&
+         !thermoPending && ((thermoSaveOffCommandSent && thermoSaveOffFeedbackSeen)||
+                           (powerState.paused&&powerThermoOffSent&&powerThermoOffSeen)) &&
          thermoFeedbackKnown && !thermoReported);
+}
+uint32_t relayPowerIdentity(unsigned i){
+ const auto &r=config.relay[i];
+ return device::powerIdentity((String(r.gpio)+":"+String(r.activeLow)+":"+r.commandGroup+":"+r.feedbackGroup).c_str());
+}
+bool powerOutputsOff(){
+ for(unsigned i=0;i<4;i++)if(config.relay[i].enabled&&relays[i].on)return false;
+ if(config.thermostatMode){
+  uint16_t demand=0;
+  if(!sensor::parseGroup(config.thermostatDemandGroup.c_str(),demand))return !config.thermostatOn;
+  return tunnel.state()==knxip::State::Connected&&powerThermoOffSent&&powerThermoOffAck&&powerThermoOffSeen&&
+         !thermoPending&&thermoFeedbackKnown&&!thermoReported;
+ }
+ return !hc.enabled||(tunnel.state()==knxip::State::Connected&&heatingSafe());
+}
+void stopAllPower(){
+ if(!powerState.paused){
+  powerState.relays=0;
+  for(unsigned i=0;i<4;i++){powerState.identity[i]=relayPowerIdentity(i);if(relays[i].on)powerState.relays|=1u<<i;}
+ }
+ powerState.paused=1;powerStoppedAt=millis();
+ for(unsigned i=0;i<4;i++)setRelay(i,false);
+ heatingResumePending=false;pumpThermalGuard.cancelResume();heat.stop(millis());heat.external.fill(false);
+ // Supersede a queued ON. Late ACKs have another token and cannot validate OFF.
+ thermoPendingToken=0;thermoPending=false;thermoDemand=false;thermoDirty=true;thermoFailed=false;
+ powerThermoOffSent=powerThermoOffSeen=powerThermoOffAck=false;
 }
 const char *configSaveStateName() {
   switch(configSavePhase){
@@ -968,7 +1035,9 @@ void heatingTelegram(const knxip::Telegram &t) {
  if(!hc.enabled)return;
  uint32_t now=millis();bool b;
  if(t.operation!=knxip::Operation::Read){
-  for(unsigned i=0;i<9;++i)if(heat.active(i)&&t.group==hc.feedback[i]&&t.asBool(b))heat.report(i,b,now);
+  for(unsigned i=0;i<9;++i)if(heat.active(i)&&t.group==hc.feedback[i]&&t.asBool(b)){
+   if(powerState.paused)heat.reportWhileOff(i,b,now);else heat.report(i,b,now);
+  }
   for(unsigned i=0;i<roomCount;++i){
    if(t.group==hc.enable[i]&&t.asBool(b)){zoneEnabled[i]=b;if(zoneMode[i]!=0)zoneMode[i]=b?2:1;roomStatusDirty[i]=true;heatCacheDirty=heatCacheUrgent=true;}
    if(!t.compact&&t.size==2){
@@ -1007,6 +1076,7 @@ void heatingLoop(uint32_t now) {
  thermalOptions.hotReturnAboveMs=uint32_t(config.pumpReturnAboveMin)*60000UL;
  thermalOptions.hotReturnPauseMs=uint32_t(config.pumpReturnPauseMin)*60000UL;
  const bool wasThermallyPaused=pumpThermalGuard.paused();
+ if(powerState.paused){pumpThermalGuard.cancelResume();heat.stop(now);heat.external.fill(false);}
  const bool thermalPause=pumpThermalGuard.update(heat,now,
    config.oneWire>=0&&fresh(3,now),readings[3].value,
    config.oneWire>=0&&fresh(4,now),readings[4].value,thermalOptions);
@@ -1024,11 +1094,11 @@ void heatingLoop(uint32_t now) {
  heat.openMs=hc.openMs;heat.serviceMs=hc.serviceMs;heat.pauseMs=hc.pauseMs;heat.tick(now,link);
  // A reboot never replays ON commands. The normal OFF/feedback sequence must
  // finish before restoring the operator's request. A safety fault cancels it.
- if(heat.fault&&heatingRequested&&!(heatingResumePending&&heat.failure==heating::Runtime::Failure::UnexpectedPump)){
+ if(!powerState.paused&&heat.fault&&heatingRequested&&!(heatingResumePending&&heat.failure==heating::Runtime::Failure::UnexpectedPump)){
    heatingRequested=heatingResumePending=false;
    if(!persistHeatingRequest(false))orbitSerial().println("Aquecimento: falha ao guardar estado OFF");
  }
- if(heatingResumePending&&!thermalPause&&configSavePhase!=ConfigSavePhase::Stopping&&
+ if(!powerState.paused&&heatingResumePending&&!thermalPause&&configSavePhase!=ConfigSavePhase::Stopping&&
     configSavePhase!=ConfigSavePhase::Saved&&heat.resumeOnBoot(heatingResumePending,now)){
    heatingResumePending=false;
    for(unsigned i=0;i<roomCount;++i)roomStatusDirty[i]=true;
@@ -1229,6 +1299,26 @@ void setupWeb() {
     }
     web.send(200,"application/json","{\"restarting\":true}");scheduleRestart();
   });
+  web.on("/api/power",HTTP_POST,[]{
+    if(!publicMutation())return;
+    if(updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Operacao em curso");return;}
+    StaticJsonDocument<128>d;
+    if(web.arg("plain").length()>128||deserializeJson(d,web.arg("plain"))||!d["enabled"].is<bool>()){error(400,"Comando invalido");return;}
+    const bool enabled=d["enabled"];
+    if(!enabled){stopAllPower();if(!savePowerState(powerState)){error(500,"Paragem pedida, mas o estado OFF nao ficou guardado. Repete antes de reiniciar.");return;}}
+    else if(powerState.paused){
+      if(!powerOutputsOff()){error(409,"Aguarda a confirmacao OFF das saidas");return;}
+      if(!config.thermostatMode&&hc.enabled&&heatingRequested&&(pumpThermalGuard.paused()||!heat.canArm(millis()))){error(409,heatingBlockReason());return;}
+      device::PowerState next=powerState;next.paused=0;
+      if(!savePowerState(next)){error(500,"Nao foi possivel guardar; saidas continuam paradas");return;}
+      powerState=next;
+      if(!config.thermostatMode&&hc.enabled&&heatingRequested){heat.arm(millis());heatingResumePending=false;}
+      thermoDirty=true;thermoFailed=false;
+      for(unsigned i=0;i<4;i++)if(config.relay[i].enabled&&powerState.restoreRelay(i,relayPowerIdentity(i)))setRelay(i,true);
+    }
+    orbitSerial().println(enabled?"Comando geral: ligado; retoma protegida":"Comando geral: OFF persistido; a confirmar saidas");
+    web.send(200,"application/json","{\"accepted\":true}");
+  });
   web.on("/api/heating/control",HTTP_POST,[]{
     if(!publicMutation())return;
     if(config.thermostatMode||!hc.enabled||updating||restarting||configSavePhase==ConfigSavePhase::Stopping||configSavePhase==ConfigSavePhase::Saved){error(409,"Aquecimento indisponivel neste modo");return;}
@@ -1243,6 +1333,7 @@ void setupWeb() {
       if(wasRequested&&!persistHeatingRequest(false)){error(500,"Controlo parado, mas não foi possível guardar o estado OFF.");return;}
     }
     else if(action=="arm"){
+      if(powerState.paused){error(409,"Liga primeiro o comando geral");return;}
       if(pumpThermalGuard.paused()){error(409,heatingBlockReason());return;}
       const uint32_t now=millis();
       if(!heat.canArm(now)){error(409,heatingBlockReason());return;}
@@ -1403,6 +1494,7 @@ void setupWeb() {
     if(web.arg("plain").length()>256||deserializeJson(d,web.arg("plain"))){error(400,"Pedido invalido");return;}
     if(d.containsKey("on")){
       if(!d["on"].is<bool>()){error(400,"Indica on verdadeiro ou falso");return;}
+      if(powerState.paused&&d["on"].as<bool>()){error(409,"Liga primeiro o comando geral");return;}
       bool previous=config.thermostatOn;config.thermostatOn=d["on"];
       if(!saveConfig(config)){config.thermostatOn=previous;error(500,"Falha ao guardar");return;}
       thermoDirty=true;thermoFailed=false;
@@ -1431,6 +1523,7 @@ void setupWeb() {
       error(400,"Comando invalido");return;}
     uint16_t group;const String op=d["operation"].as<String>();
     if(!sensor::parseGroup(d["group"],group)){error(400,"Grupo KNX invalido");return;}
+    if(powerBlocksGroup(group)&&op!="read"){error(409,"Saida bloqueada pelo comando geral");return;}
     knxip::Result result=knxip::Result::InvalidArgument;
     if(op=="read")result=tunnel.read(group);
     else if(op=="switch"&&d["value"].is<bool>())result=tunnel.writeBool(group,d["value"].as<bool>());
@@ -1492,6 +1585,7 @@ void setupWeb() {
       error(400, "Indica index e on"); return;
     }
     int i = d["index"];
+    if(powerState.paused&&d["on"].as<bool>()){error(409,"Liga primeiro o comando geral");return;}
     if (i < 0 || i >= 4 || !config.relay[i].enabled) { error(400, "Rele indisponivel"); return; }
     setRelay(unsigned(i), d["on"].as<bool>());
     web.send(200, "application/json", "{\"applied\":true}");
@@ -1509,6 +1603,13 @@ void setupWeb() {
     d["rssi"] = WiFi.RSSI();
     d["uptimeMs"] = now;
     d["freeHeap"] = ESP.getFreeHeap();
+    orbitResources(d);
+    d["powerEnabled"]=!powerState.paused;
+    const bool stopped=powerOutputsOff();
+    d["powerCanToggle"]=!updating&&!restarting&&configSavePhase!=ConfigSavePhase::Stopping&&configSavePhase!=ConfigSavePhase::Saved&&(!powerState.paused||stopped);
+    const bool stopTimeout=powerState.paused&&!stopped&&sensor::elapsed(now,powerStoppedAt,90000);
+    d["powerLevel"]=!powerStorageOk||stopTimeout?"critical":powerState.paused&&!stopped?"warning":"ok";
+    d["powerLabel"]=!powerStorageOk?"Estado nao guardado":stopTimeout?"Sem confirmacao":powerState.paused&&!stopped?"A parar":"";
     d["knx"] = stateName();
     d["individual"] = individualText(tunnel.individualAddress());
     d["bme"] = bmeOk;
@@ -1516,7 +1617,7 @@ void setupWeb() {
     d["showDiagnostics"] = config.showDiagnostics;
     d["thermostatMode"] = config.thermostatMode;
     JsonObject th = d.createNestedObject("thermostat");
-    th["name"] = config.thermostatName;th["on"] = config.thermostatOn;
+    th["name"] = config.thermostatName;th["on"] = !powerState.paused&&config.thermostatOn;
     th["setpoint"] = config.thermostatSetpoint;th["margin"] = config.thermostatMargin;
     th["demand"] = thermoDemand;th["feedbackKnown"] = thermoFeedbackKnown;
     th["knxConnected"] = tunnel.state()==knxip::State::Connected;
@@ -1638,9 +1739,9 @@ void serialCommands() {
       if (!updating && !restarting && sensor::parseGroup(group, g)) {
         if (count == 2 && !strcmp(cmd, "READ"))
           result = tunnel.read(g);
-        else if (count == 3 && !strcmp(cmd, "WRITE") && (value == 0 || value == 1))
+        else if (count == 3 && !strcmp(cmd, "WRITE") && (value == 0 || value == 1)&&!powerBlocksGroup(g))
           result = tunnel.writeBool(g, value != 0);
-        else if (count == 3 && !strcmp(cmd, "FLOAT")) {
+        else if (count == 3 && !strcmp(cmd, "FLOAT")&&!powerBlocksGroup(g)) {
           uint8_t b[2];
           if (sensor::encodeDpt9(value, b))
             result = tunnel.write(g, b, 2, false);
@@ -1676,6 +1777,7 @@ void setup() {
   loadHistory();
   orbitTime::begin(config.timezone.c_str(),config.ntpServer.c_str(),config.ntpSecondary.c_str());
   loadHeating();
+  loadPowerState();
   if(hc.enabled&&!config.thermostatMode)loadHeatingRequest();
   loadHeatingValues();
   initRelays();

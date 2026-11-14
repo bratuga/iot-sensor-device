@@ -11,6 +11,74 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
 .collector-header,.collector-title-group,.collector-system,.collector-rail,.collector-footer,.collector-legend{display:flex;align-items:center}.collector-header,.collector-footer{justify-content:space-between;gap:12px}.collector-header{margin-bottom:16px}.collector-title-group{gap:10px;min-width:0}.collector-title-icon{display:grid;width:39px;height:39px;flex:0 0 39px;place-items:center;border:1px solid #526875;border-radius:12px;background:#263742;color:var(--collector-active)}.collector-title-icon svg{width:22px;fill:none;stroke:currentColor;stroke-linecap:round;stroke-width:1.8}.collector-title-group h2{margin:0;font-size:1rem}.collector-subtitle{margin:3px 0 0;color:#9cafbb;font-size:.69rem}.collector-summary{display:inline-flex;align-items:center;gap:7px;min-height:31px;padding:0 11px;border:1px solid #69d8c35e;border-radius:999px;background:#69d8c314;color:var(--collector-active);font-size:.7rem;font-weight:750;white-space:nowrap}.collector-summary::before{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 9px currentColor;content:""}.collector-system{display:grid;grid-template-columns:138px minmax(0,1fr);gap:12px;min-width:0}.collector-pump{--state:var(--collector-active);--state-rgb:105,216,195;display:grid;min-height:245px;padding:14px 9px 12px;place-items:center;align-content:center;border:1px solid #3d515e;border-radius:18px;background:radial-gradient(circle at 50% 37%,rgba(var(--state-rgb),.1),transparent 54%),#132029;text-align:center}.collector-pump[data-state="off"],.collector-pump[data-state="unknown"]{--state:#72818b;--state-rgb:114,129,139}.collector-pump[data-state="pending"],.collector-pump[data-state="blocked"]{--state:var(--collector-warning);--state-rgb:239,179,90}.collector-pump-graphic{width:108px;height:108px;padding:8px;border:1px solid rgba(var(--state-rgb),.55);border-radius:29px;background:linear-gradient(145deg,#3b4d57,#111a20 70%);color:var(--state);box-shadow:inset 0 1px 1px #fff3,0 14px 26px #0007,0 0 20px rgba(var(--state-rgb),.15)}.collector-pump-shell{display:grid;width:90px;height:90px;place-items:center;border-radius:50%;background:radial-gradient(circle at 35% 25%,#687983,#354550 39%,#11191e 76%);box-shadow:inset 0 0 0 4px #b5c5cd2b,inset 0 0 22px #000b,0 0 0 2px #0a1014}.collector-pump-shell svg{width:80px;filter:drop-shadow(0 3px 5px #0009)}.collector-pump-inner{fill:#162129;stroke:currentColor;stroke-width:2}.collector-pump-rotor{fill:currentColor;opacity:.84;transform-origin:50px 50px}.collector-pump-hub{fill:#334650;stroke:#b7c6cd;stroke-width:1.4}.collector-pump-led{fill:currentColor;filter:drop-shadow(0 0 5px currentColor)}.collector-pump[data-state="running"] .collector-pump-rotor{animation:collector-spin 1.2s linear infinite}.collector-pump[data-state="pending"] .collector-pump-graphic{animation:collector-pulse .9s ease-in-out infinite}.collector-pump-name{margin-top:10px;font-size:.76rem}.collector-pump-status{display:flex;align-items:center;gap:5px;margin-top:3px;color:var(--state);font-size:.7rem;font-weight:750}.collector-pump-status::before{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;content:""}.collector-pump-detail{min-height:26px;margin-top:5px;color:#9cafbb;font-size:.6rem;line-height:1.35}.collector-manifold{min-width:0;max-width:100%}.collector-rail{--rail:#fff;position:relative;height:45px;justify-content:space-between;gap:6px;padding:0 10px 0 16px;overflow:hidden;border:1px solid #536773;border-radius:14px;background:linear-gradient(180deg,#42535e,#263640 45%,#19252d 100%);box-shadow:inset 0 1px 1px #fff3,inset 0 -8px 14px #0005,0 7px 14px #0003}.collector-rail::before{position:absolute;inset:0 auto 0 0;width:6px;background:var(--rail);box-shadow:0 0 15px var(--rail);content:""}.collector-supply{--rail:#ff715b}.collector-return{--rail:#4db9e7}.collector-rail-label{position:relative;z-index:1;display:flex;align-items:center;gap:5px;min-width:0;font-size:.72rem;font-weight:720}.collector-flow-arrow{color:var(--rail);font-size:1rem}.collector-temperature{position:relative;z-index:1;padding:5px 7px;border:1px solid #657884;border-radius:8px;background:#111c23b8;color:#c3d0d7;font-size:.65rem;white-space:nowrap}.collector-circuits{display:grid;height:154px;grid-template-columns:repeat(8,minmax(0,1fr));gap:2px;min-width:0;padding:0 2px}.collector-circuit{--circuit:var(--collector-off);position:relative;display:grid;min-width:0;padding:5px 0 6px;grid-template-rows:32px 1fr auto auto;justify-items:center;color:#f3f7f9;text-align:center}.collector-circuit[data-active="true"]{--circuit:var(--collector-active)}.collector-circuit[data-pending="true"]{--circuit:var(--collector-warning)}.collector-circuit[data-available="false"]{--circuit:#56636c;opacity:.42}.collector-valve{position:relative;z-index:2;display:grid;width:min(30px,90%);height:24px;place-items:center;border:1px solid #627681;border-radius:7px 7px 5px 5px;background:linear-gradient(145deg,#455963,#1a272f);color:var(--circuit);box-shadow:0 4px 8px #0005}.collector-valve::before{position:absolute;top:-5px;width:15px;height:5px;border-radius:3px 3px 0 0;background:#647681;content:""}.collector-valve-led{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor}.collector-circuit[data-pending="true"] .collector-valve-led{animation:collector-blink .65s ease-in-out infinite}.collector-pipe{position:relative;z-index:1;width:6px;height:100%;min-height:53px;overflow:hidden;border:1px solid #0b1216;border-radius:4px;background:var(--circuit);box-shadow:0 0 8px color-mix(in srgb,var(--circuit),transparent 65%)}.collector-circuit[data-available="false"] .collector-pipe{width:4px;border:0;background:repeating-linear-gradient(to bottom,#65727b 0 6px,transparent 6px 11px);box-shadow:none}.collector-flow{position:absolute;inset:-18px 0 auto;height:20px;background:linear-gradient(transparent,#eafffa,transparent);opacity:0}.collector-circuit[data-active="true"] .collector-flow{opacity:.65;animation:collector-flow-down 1.35s linear infinite}.collector-circuit-id{margin-top:3px;font-size:.68rem;font-weight:800}.collector-room{max-width:100%;overflow:hidden;color:#9cafbb;font-size:.54rem;text-overflow:ellipsis;white-space:nowrap}.collector-footer{margin-top:13px;color:#9cafbb;font-size:.61rem}.collector-legend{gap:11px;flex-wrap:wrap}.collector-legend-item{display:inline-flex;align-items:center;gap:5px}.collector-legend-item::before{width:7px;height:7px;border-radius:50%;background:var(--legend);content:""}.collector-safety{white-space:nowrap;color:#c1ced5}@keyframes collector-spin{to{transform:rotate(360deg)}}@keyframes collector-pulse{50%{box-shadow:0 0 27px rgba(var(--state-rgb),.42)}}@keyframes collector-flow-down{to{transform:translateY(92px)}}@keyframes collector-blink{50%{opacity:.25}}@media(max-width:720px){.collector-header,.collector-footer{align-items:flex-start;flex-direction:column}.collector-system{grid-template-columns:minmax(0,1fr)}.collector-pump{min-height:unset;grid-template-columns:auto 1fr;grid-template-rows:auto auto auto;justify-items:start;column-gap:14px;text-align:left}.collector-pump-graphic{grid-row:1/4}.collector-pump-name{margin-top:0}}@media(max-width:400px){.collector-card{padding:10px}.collector-system{gap:8px}.collector-circuits{gap:1px}.collector-rail-label{font-size:.61rem}.collector-temperature{font-size:.58rem;padding:4px}.collector-room{font-size:.48rem}}@media(prefers-reduced-motion:reduce){.collector-pump-rotor,.collector-pump-graphic,.collector-valve-led,.collector-flow{animation:none!important}}
 
 .ntp-row{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:20px;padding:14px 0;border-bottom:1px solid var(--orbit-line,#293747)}.ntp-row>input,.ntp-row>select{width:100%}.ntp-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:20px 0}.ntp-summary>div{border:1px solid var(--orbit-line,#293747);border-radius:12px;padding:14px}.ntp-summary small,.ntp-summary b{display:block}.ntp-summary small{color:var(--orbit-muted,#9eafc2);font-size:12px;margin-bottom:6px}.ntp-summary b{font-size:13px;overflow-wrap:anywhere}.ntp-panel .ntp-hint{font-size:12px;color:var(--orbit-muted,#9eafc2)}@media(max-width:600px){.ntp-row{grid-template-columns:1fr;gap:7px}.ntp-summary{grid-template-columns:1fr}}</style>
+</style>
+<style data-orbit-controls>
+.orbit.light :is(.thermostat-hero,.collector-card,.room-thermostat,.thermostat){color:#e8eef3}
+.orbit-power-area>#railPower{
+ --rail-ring:var(--orbit-accent);--rail-fill:0%;
+ position:relative;display:grid;place-items:center;flex:none;
+ width:118px;height:118px;min-height:0;margin:0 auto;padding:0;
+ border:0;border-radius:50%;background:var(--orbit-bg);color:var(--orbit-ink);
+ box-shadow:0 0 0 7px color-mix(in srgb,var(--rail-ring),transparent 94%);
+ touch-action:none;user-select:none;-webkit-touch-callout:none;
+}
+#railPower[data-state=warning]{--rail-ring:var(--orange)}
+#railPower[data-state=critical]{--rail-ring:var(--red)}
+#railPower:is([data-state=off],[data-state=offline]){--rail-ring:var(--orbit-muted)}
+#railPower[data-holding],#railPower[data-pending]{--rail-ring:var(--orbit-accent)}
+#railPower:is([data-holding],[data-pending]) .rail-power-ring{visibility:hidden}
+#railPower[aria-disabled=true]{cursor:default}
+#railPower :is(.rail-power-track,.rail-power-ring,.rail-power-progress){
+ position:absolute;inset:0;border-radius:50%;pointer-events:none;
+ mask:radial-gradient(farthest-side,transparent calc(100% - 6px),#000 calc(100% - 5px));
+}
+.rail-power-track{background:var(--orbit-line)}
+.rail-power-ring{background:var(--rail-ring)}
+#railPower[data-state=ok] .rail-power-ring{
+ --dim:color-mix(in srgb,var(--rail-ring),transparent 62%);
+ background:conic-gradient(var(--dim),var(--rail-ring) 32%,var(--dim) 67%);
+ animation:rail-power-rotate 8s linear infinite;
+}
+#railPower[data-state=warning] .rail-power-ring{animation:rail-power-pulse 2.4s ease-in-out infinite}
+#railPower[data-state=critical] .rail-power-ring{animation:rail-power-pulse .8s ease-in-out infinite}
+#railPower:is([data-state=off],[data-state=offline]) .rail-power-ring{opacity:.4}
+.rail-power-progress{background:conic-gradient(var(--rail-ring) var(--rail-fill),transparent var(--rail-fill))}
+.rail-power-metrics:not([hidden]){display:grid;gap:3px}
+.rail-power-metrics>span{display:flex;align-items:center;gap:7px;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}
+.orbit-power-area .rail-power-icon{width:22px;height:22px;color:var(--orbit-muted)}
+.rail-power-centre{max-width:76px;font-size:12px;line-height:1.2;text-align:center;overflow-wrap:anywhere}
+.rail-power-centre[data-symbol]{color:var(--rail-ring);font-size:30px}
+ .rail-power-caption{min-width:0;color:var(--orbit-muted);font-size:11px;line-height:1.35}
+ .rail-power-caption strong{display:block;color:var(--orbit-ink);font-weight:600}
+ .rail-power-status{display:block;color:var(--orbit-muted)}
+ .rail-power-caption small{display:block;margin-top:2px;color:inherit;font-size:inherit}
+ .rail-power-notice{display:block;margin-top:4px;overflow-wrap:anywhere}
+ .rail-power-notice[data-kind=error]{color:var(--red)}
+ .rail-power-notice[data-kind=pending]{color:var(--orange)}
+ .rail-power-notice:empty{margin-top:0}
+ @keyframes rail-power-rotate{to{transform:rotate(360deg)}}
+ @keyframes rail-power-pulse{0%,100%{opacity:1}50%{opacity:.27}}
+ @media(prefers-reduced-motion:reduce){
+  #railPower[data-state] .rail-power-ring{animation:none}
+ }
+ .orbit-rail .orbit-theme{margin-top:auto;display:flex;justify-content:center;align-items:center;min-height:44px;padding:4px;border:0;background:transparent;color:var(--orbit-muted);cursor:pointer}
+ .orbit-theme-track{display:grid;grid-template-columns:1fr 1fr;align-items:center;width:68px;height:32px;flex:none;border:1px solid var(--orbit-line);border-radius:99px;text-align:center;background:var(--orbit-bg)}
+ .orbit-theme-track>span{border-radius:99px;font-size:18px;line-height:28px}
+ .orbit-theme[aria-checked=false] .orbit-theme-track>span:first-child,.orbit-theme[aria-checked=true] .orbit-theme-track>span:last-child{background:var(--orbit-accent);color:var(--orbit-bg)}
+ @media(max-width:760px){
+  .orbit-power-area>#railPower{width:76px;height:76px;margin:0;box-shadow:none}
+  #railPower :is(.rail-power-track,.rail-power-ring,.rail-power-progress){
+   mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));
+  }
+  .rail-power-metrics:not([hidden]){gap:2px}
+  .rail-power-metrics>span{gap:3px;font-size:11px}
+  .orbit-power-area .rail-power-icon{width:14px;height:14px}
+  .rail-power-centre{max-width:57px;font-size:10px}
+  .rail-power-centre[data-symbol]{font-size:24px}
+  .orbit-theme-track{width:60px;height:30px}
+  .orbit-theme-track>span{font-size:17px;line-height:26px}
+ }
+</style>
 <style>
 .settings-tabs{display:flex;gap:7px;flex-wrap:wrap;margin:18px 0}.settings-tabs button{background:#263640;color:#dce7ee;border-radius:12px;padding:10px 15px}.settings-tabs button[aria-selected="true"]{background:#69d8c3;color:#10251f}.tab-panel{min-width:0}.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}.feature-tile{margin:0;min-width:0}.feature-grid #collectorSettings,.feature-grid #thermostatSettings{grid-column:1/-1}.feature-tile h2{margin-top:0}.feature-tile p{line-height:1.45}.tab-panel fieldset{padding:14px}.tab-panel legend{font-weight:750;color:#dbe9ee}.tab-panel .grid{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}.settings-actions{position:sticky;bottom:0;z-index:3;display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#182833f5;border:1px solid #38515e;border-radius:14px;padding:10px 16px}.settings-actions p{margin:0;font-size:.77rem}.knx-console{max-height:265px;min-height:140px;overflow:auto;background:#0a151d;border:1px solid #334b58;border-radius:12px;padding:12px}.thermostat-hero{display:grid;place-items:center;gap:10px;padding:35px;background:radial-gradient(circle at center,#2a4a5155,transparent 26rem),#182630}.thermostat-hero .thermostat{width:min(100%,360px);padding:24px}.thermostat-hero .dial{width:190px}.thermostat-hero .current{font-size:2.7rem}.thermostat-hero .step{width:46px;height:46px;flex-basis:46px}.hint{font-size:.78rem;color:#a8bbc6}@media(max-width:600px){.settings-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.settings-tabs button{width:100%}}
 </style>
@@ -23,15 +91,72 @@ static const char WEB_UI[] PROGMEM = R"HTML(<!DOCTYPE html>
 </style>
 <style>.history-nav{display:flex;gap:8px;margin:10px 0 18px}.history-nav button{background:#263c48;color:#e8eef5}.history-card{overflow:hidden}.history-chart{width:100%;height:auto;display:block;background:#101c25;border-radius:12px}.history-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem}.history-legend span::before{content:"";display:inline-block;width:11px;height:11px;margin-right:5px;background:var(--c);border-radius:50%}</style>
 <style>.history-nav{align-items:center;flex-wrap:wrap}.nav-actions{display:flex;gap:8px;margin-left:auto}.nav-actions .settings-icon{flex:0 0 42px}.room-thermostat .header{position:relative;justify-content:center;min-height:22px}.room-thermostat .header h3{max-width:calc(100% - 26px);text-align:center}.room-thermostat .status{position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:0;gap:0}.room-thermostat .status::before{width:9px;height:9px}.room-thermostat .dial{background:radial-gradient(circle,transparent 65%,#091118 66% 72%,transparent 73%),conic-gradient(from 220deg,var(--ring) 0 var(--ring-fill,0%),#344550 var(--ring-fill,0%) 86%,transparent 86%)}.room-thermostat .setpoint-controls{display:grid;grid-template-columns:1fr 1fr;justify-items:center;gap:5px}.room-thermostat .setpoint-value{grid-column:1/-1;grid-row:1}.room-thermostat .setpoint-value output{font-size:1.28rem}.room-thermostat .decrease{grid-column:1;grid-row:2}.room-thermostat .increase{grid-column:2;grid-row:2}@media(max-width:520px){#rooms .room-thermostat .setpoint-controls{display:grid;grid-template-columns:1fr 1fr;gap:4px}#rooms .room-thermostat .setpoint-value output{font-size:1.15rem}}</style>
-<style>/* Orbit navigation and forms. Device control cards retain their own styles. */
-:root{--orbit-bg:#0b1119;--orbit-panel:#111b27;--orbit-raised:#152130;--orbit-line:#263346;--orbit-ink:#e9f0f7;--orbit-muted:#9eafc2;--orbit-accent:#61d5b0}
-html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24px 0 166px;max-width:none;background:var(--orbit-bg);color:var(--orbit-ink);font-family:system-ui,sans-serif;min-height:100vh;box-sizing:border-box}
-.orbit .shell{max-width:1380px;margin:0 auto;padding:24px 0;min-width:0}.orbit-rail{position:fixed;inset:0 auto 0 0;width:142px;box-sizing:border-box;background:linear-gradient(155deg,var(--orbit-panel),var(--orbit-raised));border-right:1px solid var(--orbit-line);padding:24px 12px;display:flex;flex-direction:column;gap:8px;z-index:30}.orbit-logo{text-align:center;letter-spacing:.27em;font-size:12px;font-weight:750;margin-bottom:36px}.orbit-home{display:grid;place-items:center;width:76px;height:76px;margin:0 auto 34px;border:1px solid var(--orbit-accent);border-radius:50%;color:var(--orbit-accent);text-decoration:none;font-size:24px;background:var(--orbit-bg);box-shadow:0 0 0 10px #61d5b007,0 0 0 22px #61d5b004}.orbit-rail button,.orbit-rail>a:not(.orbit-home){display:flex;gap:10px;align-items:center;border:1px solid transparent;padding:14px 10px;border-radius:12px;background:transparent;color:var(--orbit-muted);font:12px system-ui;text-decoration:none;text-align:left;cursor:pointer;min-height:44px}.orbit-rail button.active,.orbit-rail a[aria-current="page"],.orbit-rail button:hover,.orbit-rail a:hover{background:var(--orbit-raised);border-color:var(--orbit-line);color:var(--orbit-accent)}.orbit-rail svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.4;flex:none}.orbit .top,.orbit .page-header{margin:0 0 24px;padding:0;min-height:40px}.orbit .top .online{font-size:12px}.orbit .top .brand,.orbit .page-header h1{font-size:23px;letter-spacing:-.03em;margin:0}.orbit-footer{clear:both;text-align:right;color:var(--orbit-muted);font-size:11px;padding:24px 0 16px}.orbit-tabs,.orbit .settings-tabs{display:flex;flex-wrap:wrap;gap:8px;border-bottom:1px solid var(--orbit-line);padding-bottom:14px;margin-bottom:22px}.orbit-tabs button,.orbit .settings-tabs button{font:inherit;font-size:13px;background:transparent;border:1px solid var(--orbit-line);border-radius:10px;color:var(--orbit-muted);padding:10px 15px;min-height:42px;cursor:pointer}.orbit-tabs .active,.orbit .settings-tabs [aria-selected=true]{color:var(--orbit-accent);background:var(--orbit-raised);border-color:var(--orbit-accent)}
-.orbit-config article,.orbit-config section:not(.page),.orbit-config .feature-tile{background:var(--orbit-panel);border:1px solid var(--orbit-line);border-radius:16px;padding:22px;margin-bottom:18px;color:var(--orbit-ink)}.orbit-config h2{font-size:18px;margin:0 0 18px}.orbit-config h3{font-size:15px}.orbit-config label{font-size:13px;color:var(--orbit-muted)}.orbit-config input:not([type=checkbox]):not([type=range]),.orbit-config select,.orbit-config textarea{box-sizing:border-box;max-width:100%;min-height:42px;border:1px solid var(--orbit-line);border-radius:9px;padding:10px 12px;background:var(--orbit-bg);color:var(--orbit-ink);font:14px system-ui}.orbit-config input[type=checkbox]{accent-color:var(--orbit-accent);width:18px;height:18px}.orbit-config button,.orbit-config .button{border:1px solid var(--orbit-line);border-radius:9px;padding:10px 15px;min-height:42px;font:13px system-ui;background:var(--orbit-raised);color:var(--orbit-ink);cursor:pointer}.orbit-config button.primary,.orbit-config button[type=submit]{background:var(--orbit-accent);color:var(--orbit-bg);font-weight:650}.orbit-config pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;background:var(--orbit-bg);border:1px solid var(--orbit-line);padding:14px;border-radius:10px}.orbit button:focus-visible,.orbit a:focus-visible,.orbit input:focus-visible,.orbit select:focus-visible{outline:2px solid var(--orbit-accent);outline-offset:3px}.orbit [hidden]{display:none!important}.orbit-config .grid{gap:18px}.orbit-config .grid,.orbit-config .plan-fields,.orbit-config .feature-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}.orbit-config fieldset{min-width:0}.orbit-config input[type=file]{width:100%}.orbit .settings-tabs button{max-width:100%}.orbit #msg{position:sticky;top:0;z-index:10}.orbit .muted{color:var(--orbit-muted)}
-@media(max-width:760px){body.orbit{padding:12px 14px 82px}.orbit .shell{padding:6px 0}.orbit-rail{inset:auto 0 0;width:auto;height:66px;flex-direction:row;justify-content:space-around;padding:6px;border-right:0;border-top:1px solid var(--orbit-line)}.orbit-logo,.orbit-home{display:none}.orbit-rail button,.orbit-rail>a:not(.orbit-home){font-size:10px;flex-direction:column;gap:3px;padding:5px 4px;border-radius:8px}.orbit-config article,.orbit-config section:not(.page){padding:16px}.orbit-footer{text-align:center}.orbit-tabs{gap:6px}.orbit-tabs button{padding:9px 10px}}
-</style><style>
-.orbit .top-tiles .value{font-size:clamp(16px,2.35vw,28px);overflow-wrap:anywhere}.history-plot{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:start}.history-axis{width:48px;height:232px}.history-scroll{overflow-x:auto;overscroll-behavior-inline:contain}.history-scroll .history-chart{max-width:none;height:232px;border-radius:0 10px 10px 0}.history-legend{margin:10px 0 22px}.orbit .settings-tabs{display:flex!important}.orbit .settings-tabs button{width:auto;flex:0 0 auto}.orbit.light{--orbit-bg:var(--bg);--orbit-panel:var(--panel);--orbit-raised:var(--card);--orbit-line:var(--line);--orbit-ink:var(--ink);--orbit-muted:var(--muted);--orbit-accent:var(--brand)}@media(max-width:760px){.orbit .settings-actions{bottom:66px}.orbit .top-tiles .card{padding:12px}.orbit .top-tiles .value{font-size:clamp(16px,5vw,24px);overflow-wrap:anywhere}.orbit .settings-tabs button{padding:9px 10px;font-size:12px}}
-</style><style>body.orbit{--orbit-bg:#111820;--orbit-panel:#1b2631;--orbit-raised:#20303c;--orbit-line:#344351;--orbit-accent:#78d9c0}</style><style>
+<style>/* Shared Orbit surfaces. Heating and thermostat components keep their existing styles. */
+:root{color-scheme:dark;--orbit-bg:#0b1119;--orbit-panel:#111b27;--orbit-raised:#182532;--orbit-line:#293a49;--orbit-ink:#e9f0f7;--orbit-muted:#a1b2c2;--orbit-accent:#61d5b0;--orange:#f0b374;--red:#ed9ba6;--soft-accent:#193a33;--bar-height:64px}
+body.orbit.light{color-scheme:light;--orbit-bg:#f1f5f3;--orbit-panel:#ffffff;--orbit-raised:#eaf1ed;--orbit-line:#cedbd4;--orbit-ink:#192f28;--orbit-muted:#536b60;--orbit-accent:#18755f;--orange:#865306;--red:#b43d56;--soft-accent:#e1f2e9}
+html{min-height:100%;background:var(--orbit-bg)}
+body.orbit{--bg:var(--orbit-bg);--panel:var(--orbit-panel);--line:var(--orbit-line);--accent:var(--orbit-accent);margin:0;padding:0 24px 0 166px;max-width:none;min-height:100vh;background:var(--orbit-bg);color:var(--orbit-ink);font:14px/1.5 system-ui,sans-serif}
+/* Preserve the operational card styles, including their pre-existing light variants. */
+.orbit :is(#heating,#thermostatView){font-size:16px;line-height:normal;--panel:#1b2631;--line:#344351;--accent:#78d9c0;--orbit-bg:#111820;--orbit-raised:#20303c;--orbit-line:#344351;--orbit-ink:#e9f0f7;--orbit-muted:#9eafc2;--orbit-accent:#78d9c0}
+.orbit.light :is(#heating,#thermostatView){--panel:#fff;--line:#bacfc9;--accent:#18755f;--orbit-bg:#edf4f2;--orbit-raised:#deede8;--orbit-line:#bacfc9;--orbit-ink:#18362f;--orbit-muted:#516b62;--orbit-accent:#18755f}
+.orbit .shell{max-width:1380px;margin:0 auto;padding:24px 0;min-width:0}
+.orbit-rail{position:fixed;inset:0 auto 0 0;width:142px;padding:24px 12px;background:var(--orbit-panel);border-right:1px solid var(--orbit-line);display:flex;flex-direction:column;gap:12px;z-index:30;overflow-y:auto}
+.orbit-logo{text-align:center;color:var(--orbit-muted);letter-spacing:.22em;font-size:11px;font-weight:750;margin-bottom:12px}
+.orbit-power-area{display:grid;justify-items:center;gap:12px;text-align:center}
+.orbit-nav{display:grid;gap:4px}
+.orbit-nav a{display:flex;align-items:center;gap:8px;min-height:44px;padding:8px;border:1px solid transparent;border-radius:8px;color:var(--orbit-muted);text-decoration:none;font-size:12px}
+.orbit-nav a:is([aria-current=page],:hover){background:var(--orbit-raised);border-color:var(--orbit-line);color:var(--orbit-accent)}
+.orbit-nav svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.4;flex:none}
+.orbit .page-header{display:block;margin:0 0 24px}
+.orbit .page-header h1{font-size:28px;line-height:1.2;letter-spacing:-.03em;overflow-wrap:anywhere}
+.device-status{margin:6px 0 0;font-size:12px;color:var(--orbit-muted);overflow-wrap:anywhere}
+.orbit-footer{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;border-top:1px solid var(--orbit-line);color:var(--orbit-muted);font-size:11px;padding:12px 0 0;margin:24px 0 0}
+.orbit-footer a{display:inline-flex;align-items:center;min-height:44px;color:var(--orbit-muted);text-underline-offset:3px}
+.orbit-footer a:is(:hover,[aria-current=page]){color:var(--orbit-accent)}
+.orbit :is(#helpArea,#sensorArea,#historyArea,.orbit-config) h2{font-size:16px;margin:0 0 12px}
+.orbit :is(#helpArea,#sensorArea,#historyArea,.orbit-config) :is(p,small,legend){color:var(--orbit-muted)}
+.orbit :is(#sensorReadings .card,.orbit-config section){min-width:0}
+.orbit-config section{border-radius:12px;padding:20px}
+.orbit-config h3{font-size:14px}
+.orbit-config label{font-size:13px;color:var(--orbit-muted)}
+.orbit-config :is(input:not([type=checkbox]):not([type=range]),select,textarea){max-width:100%;min-height:44px;border:1px solid var(--orbit-line);border-radius:8px;padding:9px 12px;background:var(--orbit-bg);color:var(--orbit-ink);font:14px system-ui}
+.orbit-config input[type=checkbox]{accent-color:var(--orbit-accent);width:18px;height:18px;vertical-align:middle}
+.orbit-config button,#outputs button{min-height:44px;max-width:100%;border:1px solid var(--orbit-line);border-radius:8px;padding:9px 14px;background:var(--orbit-raised);color:var(--orbit-ink);font:600 13px system-ui}
+.orbit-config button[type=submit]{background:var(--orbit-accent);color:var(--orbit-bg);border-color:transparent}
+.orbit-config button:not([type=submit]):hover:not(:disabled),#outputs button:hover:not(:disabled){border-color:var(--orbit-accent)}
+.orbit .settings-tabs{display:flex;flex-wrap:wrap;gap:6px;border-bottom:1px solid var(--orbit-line);padding-bottom:12px;margin:16px 0 20px}
+.orbit .settings-tabs button{width:auto;background:transparent;color:var(--orbit-muted)}
+.orbit .settings-tabs [aria-selected=true]{background:var(--soft-accent);color:var(--orbit-accent);border-color:var(--orbit-accent)}
+.orbit .settings-actions{background:var(--orbit-panel);border-color:var(--orbit-line);border-radius:12px}
+.orbit-config pre{max-height:320px;overflow:auto;background:var(--orbit-bg);border:1px solid var(--orbit-line);padding:12px;border-radius:8px}
+.orbit :is(button,a,input,select,summary):focus-visible{outline:2px solid var(--orbit-accent);outline-offset:2px}
+.orbit-config :is(.grid,.plan-fields,.feature-grid){gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+.orbit-config fieldset{min-width:0}
+.orbit-config input[type=file]{width:100%}
+.orbit #msg{position:sticky;top:0;z-index:10;background:var(--orbit-raised);border:1px solid var(--orbit-line);color:var(--orbit-ink);overflow-wrap:anywhere}
+.orbit .top-tiles .value{font-size:clamp(16px,2.35vw,28px);overflow-wrap:anywhere}
+.history-plot{display:grid;grid-template-columns:48px minmax(0,1fr);align-items:start}
+.history-axis{width:48px;height:232px}
+.history-scroll{overflow-x:auto;overscroll-behavior-inline:contain}
+.history-scroll .history-chart{max-width:none;height:232px;border-radius:0 8px 8px 0;background:var(--orbit-bg)}
+.history-legend{margin:10px 0 22px;color:var(--orbit-muted)}
+@media(max-width:760px){
+ body.orbit{padding:0 14px calc(var(--bar-height) + 18px + env(safe-area-inset-bottom))}
+ .orbit-rail{position:static;width:auto;padding:16px 0 0;border:0;background:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px;overflow:visible}
+ .orbit-logo{display:none}
+ .orbit-power-area{grid-template-columns:auto minmax(0,1fr);align-items:center;justify-items:start;gap:10px;text-align:left}
+ .orbit-rail .orbit-theme{margin-top:16px}
+ .orbit-nav{position:fixed;inset:auto 0 0;z-index:30;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;min-height:var(--bar-height);padding:4px 6px calc(4px + env(safe-area-inset-bottom));border-top:1px solid var(--orbit-line);background:var(--orbit-panel)}
+ .orbit-nav a{justify-content:center;flex-direction:column;gap:4px;padding:4px 1px;min-width:0;font-size:clamp(10px,2.85vw,12px);text-align:center}
+ .orbit .shell{padding:20px 0 0}
+ .orbit .page-header{margin-bottom:16px}
+ .orbit .page-header h1{font-size:26px}
+ .orbit-config section{padding:16px}
+ .orbit .settings-actions{bottom:calc(var(--bar-height) + env(safe-area-inset-bottom))}
+ .orbit .top-tiles .card{padding:12px}
+ .orbit .top-tiles .value{font-size:clamp(16px,5vw,24px)}
+ .orbit .settings-tabs button{padding:8px 10px;font-size:12px}
+}
 .orbit-actions{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
 .orbit-action{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:9px 14px;border:1px solid var(--orbit-line);border-radius:11px;background:var(--orbit-raised);color:var(--orbit-ink);font:600 .9rem system-ui}
 .orbit-action svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -42,14 +167,14 @@ html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24
 .orbit-switch[aria-checked=true] .orbit-switch-track::after{transform:translateX(16px)}
 .sensor-trend{font-size:.85em;margin-left:.35em;color:var(--orbit-muted)}.sensor-trend[data-direction=up]{color:#f29d70}.sensor-trend[data-direction=down]{color:#74c8ee}
 .collector-pump-detail:empty{display:none}
-</style></head><body class="orbit"><nav aria-label="Navegação principal" class="orbit-rail"><div class="orbit-logo">ORBIT</div><a aria-label="Início" class="orbit-home" href="/">⌂</a>
+</style></head><body class="orbit"><div class="orbit-rail"><div class="orbit-logo" aria-hidden="true">ORBIT</div><div class="orbit-power-area"><button type="button" id="railPower" class="rail-power" data-state="offline" aria-label="Comando geral · a aguardar estado" aria-disabled="true">—</button><div class="rail-power-caption"><strong>Comando geral</strong><span class="rail-power-status" id="railPowerStatus">A aguardar estado</span><small>Mantém premido 1,5 s</small><span class="rail-power-notice" id="railPowerNotice" role="status"></span></div></div>
+<nav aria-label="Navegação principal" class="orbit-nav">
 <a id="viewPanel" data-view="dashboard" href="/#painel"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z"/></svg>Painel</a>
 <a id="viewSensors" data-view="sensors" href="/#sensores"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10 14V5a2 2 0 0 1 4 0v9a4 4 0 1 1-4 0z"/></svg>Sensores</a>
 <a id="viewHistory" data-view="history" href="/#historico"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 20V10m6 10V6m6 14V12m6 8V3"/></svg>Histórico</a>
-<a id="viewHelp" data-view="help" href="/#ajuda"><svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.8 2.1c-1.3.8-1.3 1.4-1.3 2.9m0 2v1"/></svg>Ajuda</a>
-<a id="viewSettings" aria-label="Configurações" data-view="settings" href="/config.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M3 18h18M8 3v6m8 6v6"/></svg>Configuração</a></nav>
-<div class="shell"><header class="page-header"><h1 id="deviceName">Sensor KNX</h1></header><div id="msg" role="status"></div><main hidden="" id="helpArea"><section><h2>Ajuda · controlo do aquecimento</h2><p>Ativa o controlo geral após confirmar o estado da bomba e dos circuitos.</p><p><strong>Automático:</strong> a divisão pede calor de acordo com a temperatura e o setpoint. Sem temperatura válida ou setpoint, deixa de pedir calor e fica cinzenta. Ao regressar uma leitura válida, o automático retoma se o controlo estiver ativo. Se estiver configurado, o BME serve de alternativa quando falta uma temperatura KNX válida.</p><p><strong>Manual:</strong> o botão de ligar/desligar aparece ao lado do modo. O pedido mantém-se até o desligares, mudares de modo ou o controlo parar por falha.</p><p><strong>Bomba e válvulas:</strong> o ESP envia o comando e aguarda o feedback KNX; a bomba espera o tempo de abertura e faz os ciclos de serviço e pausa definidos. Falhas KNX ou de feedback podem parar o controlo e exigir nova ativação.</p><p><strong>Proteção térmica:</strong> a bomba tem 5 minutos de circulação com água de entrada abaixo do mínimo. Se a água não atingir o limite nesse período, para primeiro a bomba e depois fecha os circuitos, aguarda a pausa configurada e tenta novamente, com uma nova janela de 5 minutos. Se a água de retorno se mantiver acima do limite durante o tempo definido, também pausa. A contagem aparece na barra da bomba. As sondas DS18B20 têm de estar configuradas e a enviar leituras recentes.</p><p><strong>Reiniciar:</strong> aguarda confirmação OFF das saídas. Se o controlo estava ativo, retoma no arranque após confirmar as saídas desligadas.</p><p><strong>Histórico:</strong> regista sensores e amostras do estado da bomba de 20 em 20 minutos. Não participa no controlo.</p><p id="webMcpStatus" role="status">A verificar ferramentas WebMCP…</p></section></main><main id="sensorArea" hidden><section><h2>Sensores locais</h2><div class="grid" id="sensorReadings"></div></section></main><main hidden id="historyArea"><section class="history-card">
-<h2>Histórico · últimas 48 horas</h2><p>Desliza para ver o histórico. Cada ecrã mostra cerca de duas horas. Leituras de 20 em 20 minutos, na hora local do navegador.</p>
+<a id="viewSettings" data-view="settings" href="/config.html"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M3 18h18M8 3v6m8 6v6"/></svg>Configuração</a></nav><button type="button" id="orbitTheme" class="orbit-theme" role="switch" aria-checked="false" aria-label="Tema claro" title="Alternar tema claro e escuro"><span class="orbit-theme-track" aria-hidden="true"><span>☾</span><span>☀</span></span></button></div>
+<div class="shell"><header class="page-header"><h1 id="deviceName">Sensor KNX</h1><p class="device-status" id="connection">A ligar ao dispositivo…</p></header><div id="msg" role="status"></div><main hidden="" id="helpArea"><section><h2>Ajuda</h2><p>Ativa o controlo geral após confirmar o estado da bomba e dos circuitos.</p><p><strong>Automático:</strong> a divisão pede calor de acordo com a temperatura e o setpoint. Sem temperatura válida ou setpoint, deixa de pedir calor e fica cinzenta. Ao regressar uma leitura válida, o automático retoma se o controlo estiver ativo. Se estiver configurado, o BME serve de alternativa quando falta uma temperatura KNX válida.</p><p><strong>Manual:</strong> o botão de ligar/desligar aparece ao lado do modo. O pedido mantém-se até o desligares, mudares de modo ou o controlo parar por falha.</p><p><strong>Bomba e válvulas:</strong> o ESP envia o comando e aguarda o feedback KNX; a bomba espera o tempo de abertura e faz os ciclos de serviço e pausa definidos. Falhas KNX ou de feedback podem parar o controlo e exigir nova ativação.</p><p><strong>Proteção térmica:</strong> a bomba tem 5 minutos de circulação com água de entrada abaixo do mínimo. Se a água não atingir o limite nesse período, para primeiro a bomba e depois fecha os circuitos, aguarda a pausa configurada e tenta novamente, com uma nova janela de 5 minutos. Se a água de retorno se mantiver acima do limite durante o tempo definido, também pausa. A contagem aparece na barra da bomba. As sondas DS18B20 têm de estar configuradas e a enviar leituras recentes.</p><p><strong>Reiniciar:</strong> aguarda confirmação OFF das saídas. Se o controlo estava ativo, retoma no arranque após confirmar as saídas desligadas.</p><p><strong>Histórico:</strong> regista sensores e amostras do estado da bomba de 20 em 20 minutos. Não participa no controlo.</p><p id="webMcpStatus" role="status">A verificar ferramentas WebMCP…</p></section></main><main id="sensorArea" hidden><section><h2>Sensores</h2><div class="grid" id="sensorReadings"></div></section></main><main hidden id="historyArea"><section class="history-card">
+<h2>Histórico</h2><p>Desliza para consultar as últimas 48 horas. Cada ecrã mostra cerca de duas horas. Leituras de 20 em 20 minutos, na hora local do navegador.</p>
 <p id="historyMessage" role="status">A carregar…</p>
 <h3>Temperaturas</h3><div class="history-plot"><svg class="history-axis" id="temperatureAxis" aria-hidden="true"></svg><div class="history-scroll" id="temperatureScroll" tabindex="0" role="region" aria-label="Histórico de temperaturas com deslocação horizontal"><svg aria-label="Temperaturas da ida, retorno e ambiente" class="history-chart" id="historyChart" role="img"></svg></div></div>
 <div class="history-legend"><span style="--c:#ff705c">Sonda 1 · entrada</span><span style="--c:#4db9e7">Sonda 2 · retorno</span><span style="--c:#69d8c3">Temperatura ambiente</span><span style="--c:#d694f5">Bomba ligada · amostra</span></div>
@@ -67,10 +192,10 @@ html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24
 </main><main hidden="" id="thermostatView"><section class="thermostat-hero"><p class="hint">Termóstato da divisão · sensor BME280</p><article class="thermostat" data-demand="false" data-powered="false" id="thermoTile"><header class="header"><h2 id="thermoName">Termóstato</h2><span class="status" id="thermoState">A aguardar</span></header><div class="dial" id="thermoDial" role="img"><div class="dial-content"><span class="label">Ambiente</span><output class="current" id="thermoTemperature">—<small>°C</small></output><span class="heat-state" id="thermoDemand">Sem leitura</span></div></div><section class="setpoint"><div class="setpoint-controls"><button aria-label="Diminuir setpoint" class="step" id="thermoDown" type="button">−</button><div class="setpoint-value"><span class="label">Pretendida</span><output id="thermoTarget">— °C</output></div><button aria-label="Aumentar setpoint" class="step" id="thermoUp" type="button">+</button></div><p aria-live="polite" class="pending" id="thermoPending"></p></section><footer class="tile-footer"><button aria-label="Ligar ou desligar termóstato" class="power" id="thermoPower" type="button"><svg aria-hidden="true" viewbox="0 0 24 24"><path d="M12 2v10M5.6 5.6a9 9 0 1 0 12.8 0"></path></svg></button><span class="hint">Automático · BME local</span></footer></article><p class="hint" id="thermoHelp">O pedido KNX aguarda confirmação do feedback.</p></section>
 </main><main class="orbit-config" hidden="" id="settingsArea">
 <p><button id="backDashboard" type="button">← Voltar ao painel</button></p>
-<section class="login-panel" id="loginPanel"><h2>Configurações</h2><p>Inicia sessão para editar as configurações.</p><form id="loginForm"><label>Utilizador<input autocomplete="username" id="loginUser" required="" value="admin"/></label><label>Palavra-passe<input autocomplete="current-password" id="loginPassword" required="" type="password"/></label><button type="submit">Entrar</button></form><p id="loginError" role="alert"></p></section>
+<section class="login-panel" id="loginPanel"><h2>Configuração</h2><p>Inicia sessão para editar as configurações.</p><form id="loginForm"><label>Utilizador<input autocomplete="username" id="loginUser" required="" value="admin"/></label><label>Palavra-passe<input autocomplete="current-password" id="loginPassword" required="" type="password"/></label><button type="submit">Entrar</button></form><p id="loginError" role="alert"></p></section>
 <div hidden="" id="privateSettings"><button type="button" id="logoutAdmin">Sair</button>
-<nav aria-label="Áreas de configuração" class="settings-tabs" role="tablist"><button aria-controls="tab-config" aria-selected="false" data-tab="config" role="tab" type="button">Técnico</button><button aria-controls="tab-diagnostics" aria-selected="false" data-tab="diagnostics" role="tab" type="button">Diagnóstico</button><button aria-controls="tab-hardware" aria-selected="false" data-tab="hardware" role="tab" type="button">Hardware</button><button aria-controls="tab-knx" aria-selected="false" data-tab="knx" role="tab" type="button">KNX</button><button aria-controls="tab-features" aria-selected="false" data-tab="features" role="tab" type="button">Configurações</button></nav>
-<form id="settings" novalidate=""><div class="tab-panel" hidden="" id="tab-diagnostics" role="tabpanel"><section><h2>Diagnóstico e logs</h2><button id="refreshDiagnostics" type="button">Atualizar</button><pre id="orbitDiagnostics"></pre><pre id="orbitLogs"></pre><p>Registo em RAM; este firmware não dispõe de cartão SD.</p></section><section id="diagnosticSection"><h2>Estado e diagnóstico</h2><pre id="status"></pre><details><summary>Telegramas recebidos</summary><pre id="telegrams">Sem dados</pre></details><p>Sondas detetadas: <span id="roms">—</span></p></section></div><div class="tab-panel" id="tab-features" role="tabpanel">
+<nav aria-label="Áreas de configuração" class="settings-tabs" role="tablist"><button id="settings-tab-config" aria-controls="tab-config" aria-selected="false" data-tab="config" role="tab" type="button">Técnico</button><button id="settings-tab-diagnostics" aria-controls="tab-diagnostics" aria-selected="false" data-tab="diagnostics" role="tab" type="button">Diagnóstico</button><button id="settings-tab-hardware" aria-controls="tab-hardware" aria-selected="false" data-tab="hardware" role="tab" type="button">Hardware</button><button id="settings-tab-knx" aria-controls="tab-knx" aria-selected="false" data-tab="knx" role="tab" type="button">KNX</button><button id="settings-tab-features" aria-controls="tab-features" aria-selected="false" data-tab="features" role="tab" type="button">Configurações</button></nav>
+<form id="settings" novalidate=""><div class="tab-panel" hidden="" id="tab-diagnostics" role="tabpanel" aria-labelledby="settings-tab-diagnostics"><section><h2>Registos</h2><button id="refreshDiagnostics" type="button">Atualizar</button><pre id="orbitDiagnostics"></pre><pre id="orbitLogs"></pre><p>Registo em RAM; este firmware não dispõe de cartão SD.</p></section><section id="diagnosticSection"><h2>Estado e diagnóstico</h2><pre id="status"></pre><details><summary>Telegramas recebidos</summary><pre id="telegrams">Sem dados</pre></details><p>Sondas detetadas: <span id="roms">—</span></p></section></div><div class="tab-panel" id="tab-features" role="tabpanel" aria-labelledby="settings-tab-features">
 <section><h2>Função principal</h2><p>Escolhe uma função exclusiva. O mapa do coletor permanece guardado ao mudar para termóstato.</p><label>Modo do dispositivo<select id="profileMode"><option value="collector">Controlo de piso radiante</option><option value="thermostat">Termóstato de divisão</option></select></label></section>
 <div class="feature-grid">
 <section class="feature-tile" id="collectorSettings"><h2>Controlo de piso radiante</h2><p>Primeiro cria as divisões e associa circuitos. Os endereços de grupo aparecem no separador KNX.</p><div class="grid" id="heatSettings"></div><fieldset><legend>Proteção térmica da bomba</legend><div class="plan-fields" id="pumpGuardSettings"></div><p class="hint">Sonda 1 mede a entrada de água quente; sonda 2 mede o retorno. A proteção só atua com uma leitura DS18B20 recente.</p></fieldset><p><button id="addRoom" type="button">Adicionar divisão</button></p><div class="plan-fields" id="zoneFields"></div><h3>Posições do coletor</h3><div class="plan-fields" id="circuitFields"></div><p><button id="saveHeating" type="button">Guardar mapa e reiniciar</button></p><small>O ESP para a bomba e os circuitos, aguarda feedback OFF, grava o mapa e reinicia.</small></section>
@@ -79,26 +204,167 @@ html{min-height:100%;background:var(--orbit-bg)}body.orbit{margin:0;padding:0 24
 <section class="feature-tile"><h2>Actuadores locais</h2><p>Relés independentes do coletor.</p><div id="relayFeature"></div></section>
 <section class="feature-tile"><h2>Inputs locais</h2><p>Quatro entradas digitais; publicam mudanças no KNX se tiverem grupo.</p><div id="inputFeature"></div></section>
 </div></div>
-<div class="tab-panel" hidden="" id="tab-knx" role="tabpanel">
+<div class="tab-panel" hidden="" id="tab-knx" role="tabpanel" aria-labelledby="settings-tab-knx">
 <section><h2>Ligação KNX</h2><div class="grid" id="knx"></div></section>
-<section><h2>Diagnóstico da configuração KNX</h2><p>Verifica os endereços dos canais ativos antes de guardar. Não envia telegramas nem altera a configuração.</p><button id="validateKnx" type="button">Validar endereços KNX</button><pre aria-live="polite" id="knxValidation" role="status"></pre></section>
-<section><h2>Sensores · envio</h2><p>Mostram-se os canais selecionados em Funcionalidades.</p><div id="channels"></div></section>
+<section><h2>Validar grupos KNX</h2><p>Verifica os endereços dos canais ativos antes de guardar. Não envia telegramas nem altera a configuração.</p><button id="validateKnx" type="button">Validar endereços KNX</button><pre aria-live="polite" id="knxValidation" role="status"></pre></section>
+<section><h2>Sensores · envio</h2><p>Mostram-se os canais selecionados em Configurações.</p><div id="channels"></div></section>
 <section id="heatKnxSection"><h2>Piso radiante · receção e comandos</h2><p>Temperatura e setpoint recebidos; pedido, comandos e feedback separados por divisão/circuito.</p><div class="plan-fields" id="zoneKnxFields"></div><h3>Saídas KNX · circuitos e bomba</h3><div class="plan-fields" id="circuitKnxFields"></div></section>
 <section hidden="" id="thermostatKnxSection"><h2>Termóstato · grupos KNX</h2><div id="thermostatKnx"></div></section>
 <section><h2>Actuadores locais · comando e feedback</h2><div id="relayKnx"></div></section>
 <section><h2>Inputs locais · envio</h2><div id="inputKnx"></div></section><section><h2>Terminal KNX</h2><p>Últimos telegramas recebidos e envio manual. Enfileirar um telegrama não confirma a atuação.</p><pre aria-live="polite" class="knx-console" id="knxConsole">A aguardar telegramas…</pre><div class="grid"><label>Grupo KNX<input id="knxGroup" placeholder="3/4/10"/></label><label>Operação<select id="knxOperation"><option value="read">Ler grupo</option><option value="switch">Escrever DPT 1.001</option><option value="float">Escrever DPT 9.xxx</option></select></label><label hidden="" id="knxValueLabel">Valor<input id="knxValue" placeholder="0 ou 1"/></label></div><button id="knxSend" type="button">Enviar ao KNX</button></section></div>
-<div class="tab-panel" hidden="" id="tab-hardware" role="tabpanel">
-<section><h2>Sensores e OLED · pinos</h2><div class="grid" id="hardware"></div><p><button id="saveOneWire" type="button">Guardar GPIO e ROM das sondas e reiniciar</button> <button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p>Sondas detetadas: <span id="hardwareRoms">Nenhuma; configura o GPIO e reinicia</span></p><p class="hint">Primeiro guarda o GPIO com os canais DS18B20 desativados e as ROM vazias. Depois do reinício, copia cada código de «Sondas detetadas» para a ROM correspondente e guarda novamente. O botão acima guarda o GPIO e as duas ROM; não guarda outros campos alterados.</p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
+<div class="tab-panel" hidden="" id="tab-hardware" role="tabpanel" aria-labelledby="settings-tab-hardware">
+<section><h2>Pinos dos sensores e OLED</h2><div class="grid" id="hardware"></div><p><button id="saveOneWire" type="button">Guardar GPIO e ROM das sondas e reiniciar</button> <button id="oledPreset" type="button">Aplicar pinos do OLED integrado · WiFi Kit 32 V2/V2.1</button></p><p>Sondas detetadas: <span id="hardwareRoms">Nenhuma; configura o GPIO e reinicia</span></p><p class="hint">Primeiro guarda o GPIO com os canais DS18B20 desativados e as ROM vazias. Depois do reinício, copia cada código de «Sondas detetadas» para a ROM correspondente e guarda novamente. O botão acima guarda o GPIO e as duas ROM; não guarda outros campos alterados.</p><p class="hint">Confirma a revisão da placa. BME280 e OLED podem usar barramentos I²C separados.</p></section>
 <section><h2>GPIO dos relés</h2><div id="relayHardware"></div></section>
 <section><h2>GPIO dos inputs</h2><div id="inputHardware"></div><p class="hint">GPIO 34/35/36/39 exigem resistência externa. As outras entradas usam pull-up (ativo baixo) ou pull-down (ativo alto) internos.</p></section></div>
-<div class="tab-panel" hidden="" id="tab-config" role="tabpanel">
+<div class="tab-panel" hidden="" id="tab-config" role="tabpanel" aria-labelledby="settings-tab-config">
 <section><h2>Rede e dispositivo</h2><button id="scanWifi" type="button">Pesquisar redes</button><select aria-label="Redes disponíveis" id="wifiNetworks"><option value="">Selecionar rede</option></select><p id="wifiScanState" role="status"></p><div class="grid" id="general"></div></section>
 <article class="card ntp-panel" id="ntpPanel"><span class="eyebrow">HORA</span><h2>NTP e relógio local</h2><div class="ntp-row"><label for="ntpServer">Servidor NTP</label><input id="ntpServer" maxlength="63" value="pool.ntp.org"/></div><div class="ntp-row"><label for="ntpSecondary">Servidor alternativo</label><input id="ntpSecondary" maxlength="63" value="time.cloudflare.com"/></div><div class="ntp-row"><label for="timezone">Fuso horário</label><select id="timezone"><option value="WET0WEST,M3.5.0/1,M10.5.0">Europe/Lisbon</option><option value="UTC0">UTC</option></select></div><div class="ntp-summary"><div><small>Hora local</small><b id="rtcTimeValid">—</b></div><div><small>RTC externo</small><b id="rtcAvailable">—</b></div><div><small>Histórico interno</small><b id="sdAvailable">—</b></div></div><button type="button" id="syncTime">Sincronizar agora</button><p class="ntp-hint">Utiliza os servidores e o fuso guardados. Guarde primeiro as alterações.</p><p id="timeSyncState" role="status" aria-live="polite"></p></article><section><h2>Backup e restauro</h2><p>O backup inclui a configuração e o mapa KNX, sem passwords. O restauro conserva as passwords atuais e reinicia.</p><button id="export" type="button">Descarregar backup</button><label>Ficheiro de backup JSON<input accept=".json,application/json" id="restoreFile" type="file"/></label><button id="restore" type="button">Restaurar configuração</button></section>
 <section><h2>Atualização de firmware</h2><p>O firmware deve identificar este equipamento e perfil. Ficheiros antigos sem identificação são recusados. Mantém a alimentação.</p><input accept=".bin" id="firmware" type="file"/><p><button id="update" type="button">Instalar atualização OTA</button></p><progress hidden="" id="progress" max="100" value="0"></progress></section>
 <section><h2>Administração</h2><label>Nova palavra-passe<input autocomplete="new-password" id="newAdminPassword" maxlength="63" minlength="10" type="password"/></label><button id="changeAdminPassword" type="button">Alterar palavra-passe</button> <button id="restartDevice" type="button">Reiniciar dispositivo</button></section></div>
 <div class="settings-actions"><button type="submit">Guardar configurações e reiniciar</button><p>Ao gravar, o ESP reinicia e confirma OFF no arranque pela ligação KNX configurada.</p></div></form>
-</div></main><footer class="device-meta" id="connection">A ligar ao dispositivo…</footer>
-<script>
+</div></main><footer class="orbit-footer"><span id="orbitVersion">A consultar firmware…</span><a id="viewHelp" data-view="help" href="/#ajuda">Ajuda</a></footer>
+<script data-orbit-controls>// Orbit control adapted from bratuga/iot-vmc-controler main 754e3b0.
+function createOrbitPower(sendPower){
+ const railPower=document.getElementById('railPower');
+ railPower.innerHTML=`<span class="rail-power-track" aria-hidden="true"></span><span class="rail-power-ring" aria-hidden="true"></span><span class="rail-power-progress" aria-hidden="true"></span>
+  <span class="rail-power-metrics" id="railPowerMetrics" aria-hidden="true" hidden>
+   <span><svg class="rail-power-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M8 2v3m4-3v3m4-3v3M8 19v3m4-3v3m4-3v3M2 8h3m-3 4h3m-3 4h3m14-8h3m-3 4h3m-3 4h3"/></svg><span id="railCpu">—</span></span>
+   <span><svg class="rail-power-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="7" width="20" height="9" rx="1.5"/><path d="M5 16v3m3-3v3m3-3v3m5-3v3m3-3v3M6 11h2m3 0h2m3 0h2"/></svg><span id="railHeap">—</span></span>
+  </span>
+  <span class="rail-power-centre" id="railPowerCentre" aria-hidden="true">—</span>`;
+ const vmcEl=id=>document.getElementById(id);
+ const vmcText=(id,text)=>{if(vmcEl(id).textContent!==text)vmcEl(id).textContent=text};
+ let deviceState=null,deviceBusy=false;
+ let railHold=null,railPending=false,railFrame=0,railConfirmTarget=null,railError='';
+ function renderRailNotice(state,label){
+  const error=railError||(state==='critical'?label:'');
+  const pending=railPending?'A enviar comando…':state==='warning'?label:railConfirmTarget!==null?'A aguardar confirmação':'';
+  vmcEl('railPowerNotice').dataset.kind=error?'error':pending?'pending':'';
+  const notice=error||pending||(state==='offline'?label:'');
+  vmcText('railPowerNotice',notice);
+  vmcText('railPowerStatus',notice?'':state==='off'?'Saídas desligadas':'Saídas autorizadas');
+ }
+ function railPowerState(state){
+  if(typeof state?.powerEnabled!=='boolean')return ['offline','Sem ligação'];
+  if(state.level==='critical')return ['critical',state.label||'Falha crítica'];
+  if(state.level==='warning')return ['warning',state.label||'A aguardar'];
+  if(!state.powerEnabled)return ['off','Saídas desligadas'];
+  return ['ok','Ligada · OK'];
+ }
+ function renderRailPower(){
+  const enabled=deviceState?.powerEnabled;
+  if(railHold&&(deviceBusy||deviceState?.canToggle===false||railHold.enabled!==enabled))clearRailHold();
+  const [state,label]=railPowerState(deviceState);
+  if(railConfirmTarget!==null&&enabled===railConfirmTarget&&(state==='ok'||state==='off'))railConfirmTarget=null;
+  renderRailNotice(state,label);
+  const working=!!railHold||railPending;
+  railPower.dataset.state=state;
+  railPower.toggleAttribute('data-holding',!!railHold);
+  railPower.toggleAttribute('data-pending',railPending);
+  railPower.setAttribute('aria-disabled',String(state==='offline'||deviceBusy||railPending||deviceState?.canToggle===false));
+  const metrics=state==='ok'&&!working;
+  vmcEl('railPowerMetrics').hidden=!metrics;
+  const cpu=Number.isFinite(deviceState?.cpuUsePct)?deviceState.cpuUsePct+'%':Number.isFinite(deviceState?.cpuMHz)?deviceState.cpuMHz+' MHz':'—';
+  const heap=Number.isFinite(deviceState?.heapUsePct)?deviceState.heapUsePct+'%':'—';
+  vmcText('railCpu',cpu);vmcText('railHeap',heap);
+  const centre=vmcEl('railPowerCentre');
+  const powerSymbol=working||state==='off';
+  centre.hidden=metrics;
+  centre.toggleAttribute('data-symbol',powerSymbol);
+  vmcText('railPowerCentre',powerSymbol?'⏻':state==='offline'?'—':label);
+  const hint=state==='offline'?'':' · manter premido 1,5 s para '+(enabled?'desligar':'ligar');
+  const accessible=label+(metrics?' · CPU '+cpu+(Number.isFinite(deviceState?.cpuUsePct)?' de utilização':' de frequência; utilização indisponível')+' · memória utilizada '+heap:'')+hint;
+  railPower.setAttribute('aria-label',accessible);
+  railPower.title=accessible;
+ }
+ function clearRailHold(){
+  railHold=null;
+  cancelAnimationFrame(railFrame);
+  railPower.style.setProperty('--rail-fill','0%');
+ }
+ function cancelRailHold(){
+  if(!railHold)return;
+  clearRailHold();
+  renderRailPower();
+ }
+ function startRailHold(source){
+  if(railHold||deviceBusy||railPending||typeof deviceState?.powerEnabled!=='boolean'||deviceState.canToggle===false)return;
+  const hold={source,enabled:deviceState.powerEnabled,started:performance.now()};
+  railHold=hold;
+  railConfirmTarget=null;
+  railError='';
+  renderRailPower();
+  const fill=async now=>{
+   if(railHold!==hold)return;
+   const progress=Math.min(1,(now-hold.started)/1500);
+   railPower.style.setProperty('--rail-fill',progress*100+'%');
+   if(progress<1){railFrame=requestAnimationFrame(fill);return}
+   clearRailHold();
+   if(deviceBusy||deviceState?.canToggle===false||deviceState?.powerEnabled!==hold.enabled){renderRailPower();return}
+   const target=!hold.enabled;
+   railPending=true;
+   railPower.style.setProperty('--rail-fill','100%');
+   renderRailPower();
+   try{
+    if(await sendPower(target))railConfirmTarget=target;
+    else railError='Comando falhou';
+   }catch(error){railError=error.message||'Comando falhou'}
+   railPending=false;
+   railPower.style.setProperty('--rail-fill','0%');
+   renderRailPower();
+  };
+  railFrame=requestAnimationFrame(fill);
+ }
+ railPower.addEventListener('pointerdown',event=>{
+  if(!event.isPrimary||event.button!==0||railPower.getAttribute('aria-disabled')==='true')return;
+  railPower.setPointerCapture(event.pointerId);
+  startRailHold(event.pointerId);
+ });
+ for(const name of ['pointerup','pointercancel','lostpointercapture']){
+  railPower.addEventListener(name,event=>{if(railHold?.source===event.pointerId)cancelRailHold()});
+ }
+ railPower.addEventListener('pointermove',event=>{
+  if(railHold?.source!==event.pointerId)return;
+  const bounds=railPower.getBoundingClientRect();
+  if(event.clientX<bounds.left-8||event.clientX>bounds.right+8||event.clientY<bounds.top-8||event.clientY>bounds.bottom+8)cancelRailHold();
+ });
+ railPower.addEventListener('keydown',event=>{
+  if(event.key==='Escape')cancelRailHold();
+  if(event.key!==' '&&event.key!=='Enter')return;
+  event.preventDefault();
+  if(!event.repeat)startRailHold(event.key);
+ });
+ railPower.addEventListener('keyup',event=>{if(railHold?.source===event.key)cancelRailHold()});
+ railPower.addEventListener('blur',cancelRailHold);
+ railPower.addEventListener('contextmenu',event=>event.preventDefault());
+ window.addEventListener('blur',cancelRailHold);
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)cancelRailHold()});
+ return {update(state,busy=false){
+  deviceState=state;
+  deviceBusy=busy;
+  renderRailPower();
+ }};
+}
+
+function initOrbitTheme(key='orbit-theme'){
+ const button=document.getElementById('orbitTheme');if(!button)return;
+ const apply=light=>{document.body.classList.toggle('light',light);button.setAttribute('aria-checked',String(light));};
+ try{apply(localStorage.getItem(key)==='light')}catch(e){apply(false)}
+ button.addEventListener('click',()=>{const light=!document.body.classList.contains('light');apply(light);try{localStorage.setItem(key,light?'light':'dark')}catch(e){}});
+}
+
+initOrbitTheme('iot-sensor-device-theme');
+let orbitLastState=null,orbitPowerBusy=false;
+const orbitPower=createOrbitPower(async enabled=>{
+ if(orbitPowerBusy)return false;orbitPowerBusy=true;
+ try{await orbitPowerRequest(enabled);await orbitRefreshPower();return true}
+ finally{orbitPowerBusy=false;orbitShowPower(orbitLastState)}
+});
+function orbitShowPower(s){orbitLastState=s;orbitPower.update(typeof s?.powerEnabled==='boolean'?{powerEnabled:s.powerEnabled,cpuUsePct:s.cpuUsePct,cpuMHz:s.cpuMHz,heapUsePct:s.heapUsePct,level:s.powerLevel,label:s.powerLabel,canToggle:s.powerCanToggle!==false}:null,orbitPowerBusy);}
+
+async function orbitPowerRequest(enabled){await api('/api/power',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({enabled}),signal:AbortSignal.timeout(5000)});}
+async function orbitRefreshPower(){try{orbitShowPower(await api('/api/status',{signal:AbortSignal.timeout(5000)}))}catch(e){orbitShowPower(null)}}
+</script><script>
 'use strict';let cfg,csrf='',busy=false;
 const $=id=>document.getElementById(id);const show=s=>{$('msg').textContent=s;$('msg').style.display='block'};
 async function api(path,options={}){const r=await fetch(path,{cache:'no-store',...options});const j=await r.json();if(!r.ok){const e=Error(j.error||('HTTP '+r.status));e.status=r.status;throw e;}return j;}
@@ -132,15 +398,37 @@ function view(name,updateHash=true){
  $('thermostatView').hidden=name!=='dashboard'||!currentThermostatMode;
  $('sensorArea').hidden=name!=='sensors';$('settingsArea').hidden=!settings;
  $('historyArea').hidden=name!=='history';$('helpArea').hidden=name!=='help';
- for(const link of document.querySelectorAll('.orbit-rail [data-view]')){
+ for(const link of document.querySelectorAll('[data-view]')){
   if(link.dataset.view===name)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
  }
  const hash=publicHashes[name];
  if(updateHash&&hash&&location.hash!=='#'+hash)location.hash=hash;
 }
 let currentThermostatMode=false;
-function selectTab(name){for(const b of document.querySelectorAll('.settings-tabs [role="tab"]')){const selected=b.dataset.tab===name;b.setAttribute('aria-selected',String(selected));$(b.getAttribute('aria-controls')).hidden=!selected;}}
-for(const b of document.querySelectorAll('.settings-tabs [role="tab"]'))b.onclick=()=>selectTab(b.dataset.tab);
+const settingsHashes={config:'tecnico',diagnostics:'diagnostico',hardware:'hardware',knx:'knx',features:'configuracoes'};
+const settingsTabs=Array.from(document.querySelectorAll('.settings-tabs [role="tab"]'));
+function tabFromHash(){return Object.keys(settingsHashes).find(name=>'#'+settingsHashes[name]===location.hash)||'config';}
+function selectTab(name){
+ for(const b of settingsTabs){
+  const selected=b.dataset.tab===name,panel=$(b.getAttribute('aria-controls'));
+  b.setAttribute('aria-selected',String(selected));b.tabIndex=selected?0:-1;
+  panel.hidden=!selected;
+ }
+}
+function goToTab(name){
+ selectTab(name);
+ const hash='#'+settingsHashes[name];
+ if(location.pathname==='/config.html'&&location.hash!==hash)location.hash=hash;
+}
+settingsTabs.forEach((tab,index)=>{
+ tab.onclick=()=>goToTab(tab.dataset.tab);
+ tab.onkeydown=e=>{
+  const next=e.key==='ArrowLeft'?settingsTabs[(index+settingsTabs.length-1)%settingsTabs.length]:
+   e.key==='ArrowRight'?settingsTabs[(index+1)%settingsTabs.length]:e.key==='Home'?settingsTabs[0]:e.key==='End'?settingsTabs.at(-1):null;
+  if(!next)return;
+  e.preventDefault();goToTab(next.dataset.tab);next.focus();
+ };
+});
 function visibility(){if(!cfg)return;const mode=$('profileMode').value==='thermostat';$('collectorSettings').hidden=mode;$('thermostatSettings').hidden=!mode;$('heatKnxSection').hidden=mode;$('thermostatKnxSection').hidden=!mode;for(let i=0;i<5;i++)$('ch'+i).parentElement.hidden=!$('channelEnabled'+i).checked;for(let i=0;i<4;i++){$('relayK'+i).hidden=!$('r'+i+'_enabled').checked;$('inputK'+i).hidden=!$('in'+i+'_enabled').checked;}}
 function validateKnxFields(){
  const problems=[],valid=s=>{const m=s.trim().match(/^(\d{1,3})\/(\d{1,3})\/(\d{1,3})$/);return !!m&&+m[1]<=15&&+m[2]<=7&&+m[3]<=255&&!(+m[1]===0&&+m[2]===0&&+m[3]===0)};
@@ -155,10 +443,10 @@ function validateKnxFields(){
  return problems;
 }
 $('validateKnx').onclick=()=>{selectTab('knx');validateKnxFields();};
-$('sensorKnxSettings').onclick=()=>{visibility();selectTab('knx');const first=Array.from({length:5},(_,i)=>i).find(i=>$('channelEnabled'+i).checked);if(first!==undefined)$((first)+'_group').focus();else show('Seleciona primeiro um sensor para enviar ao KNX.');};
+$('sensorKnxSettings').onclick=()=>{visibility();goToTab('knx');const first=Array.from({length:5},(_,i)=>i).find(i=>$('channelEnabled'+i).checked);if(first!==undefined)$((first)+'_group').focus();else show('Seleciona primeiro um sensor para enviar ao KNX.');};
 
 function dashboard(){view('dashboard');}
-async function openSettings(){view('settings');if(location.pathname!='/config.html')return;$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();selectTab('config');$('loginPanel').hidden=true;$('privateSettings').hidden=false;}catch(e){$('loginError').textContent=e.message;}}
+async function openSettings(){view('settings');if(location.pathname!='/config.html')return;$('privateSettings').hidden=true;$('loginPanel').hidden=false;if(!adminSession)return;try{const r=await adminApi('/api/config');cfg=r.config;heatingPlan=await adminApi('/api/heating/layout');render();renderRelays();renderInputs();renderHeating();visibility();selectTab(tabFromHash());$('loginPanel').hidden=true;$('privateSettings').hidden=false;}catch(e){$('loginError').textContent=e.message;}}
 $('backDashboard').onclick=dashboard;
 $('restartDevice').onclick=async()=>{if(busy||!confirm('Reiniciar o dispositivo? O coletor aguarda confirmação das saídas desligadas.'))return;busy=true;try{const result=await adminApi('/api/restart',{method:'POST',headers:{'X-CSRF-Token':csrf}});if(result.pending)await waitForSafeSave(()=>result,'A reiniciar o dispositivo…');else show('A reiniciar o dispositivo…');}catch(e){show('Não foi possível reiniciar: '+e.message);}finally{busy=false;}};
 let lastHistoryRows=null,historyPosition=1;
@@ -193,14 +481,14 @@ function drawHistory(rows){
   function el(parent,tag,attrs,content){const n=document.createElementNS(ns,tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,String(v));if(content!==undefined)n.textContent=content;parent.append(n);return n;}
   for(let i=0;i<=4;i++){
    const v=min+(max-min)*i/4,py=y(v);
-   el(svg,'line',{x1:0,x2:width,y1:py,y2:py,stroke:'#344854'});
-   el(axis,'text',{x:43,y:py+4,fill:'#b9cbd3','text-anchor':'end','font-size':12},v.toLocaleString('pt-PT',{maximumFractionDigits:1})+(kind?'%':'°'));
+   el(svg,'line',{x1:0,x2:width,y1:py,y2:py,stroke:'var(--orbit-line)'});
+   el(axis,'text',{x:43,y:py+4,fill:'var(--orbit-muted)','text-anchor':'end','font-size':12},v.toLocaleString('pt-PT',{maximumFractionDigits:1})+(kind?'%':'°'));
   }
   for(let t=start;t<=end;t+=1800){
    const px=x(t),date=new Date(t*1000);
-   el(svg,'line',{x1:px,x2:px,y1:20,y2:194,stroke:'#263346'});
+   el(svg,'line',{x1:px,x2:px,y1:20,y2:194,stroke:'var(--orbit-line)'});
    const anchor=t===end?'end':t===start?'start':'middle';
-   el(svg,'text',{x:t===end?width-5:t===start?5:px,y:216,fill:'#b9cbd3','text-anchor':anchor,'font-size':11},date.toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
+   el(svg,'text',{x:t===end?width-5:t===start?5:px,y:216,fill:'var(--orbit-muted)','text-anchor':anchor,'font-size':11},date.toLocaleString('pt-PT',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}));
   }
   if(!kind)for(const row of rows)if(row[5]===1)el(svg,'circle',{cx:x(row[0]),cy:195,r:3.5,fill:'#d694f5'});
   series[kind].forEach((color,i)=>{
@@ -487,12 +775,12 @@ function appendTrend(element,channel,index){
  arrow.textContent={up:'↑',down:'↓',flat:'→'}[direction];arrow.title=label;arrow.setAttribute('role','img');arrow.setAttribute('aria-label',label);element.append(arrow);
 }
 async function refresh(){if(busy)return;try{
- const s=adminSession&&location.pathname==='/config.html'?await adminApi('/api/status'):await api('/api/status');csrf=s.csrf;if(s.historyTime===false&&Date.now()-clockSyncAttempt>300000){clockSyncAttempt=Date.now();api('/api/history/time',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({time:Math.floor(Date.now()/1000)})}).catch(()=>{});}currentThermostatMode=!!s.thermostatMode;latestThermo=s.thermostat;
+ const s=adminSession&&location.pathname==='/config.html'?await adminApi('/api/status'):await api('/api/status');orbitShowPower(s);csrf=s.csrf;if(s.historyTime===false&&Date.now()-clockSyncAttempt>300000){clockSyncAttempt=Date.now();api('/api/history/time',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({time:Math.floor(Date.now()/1000)})}).catch(()=>{});}currentThermostatMode=!!s.thermostatMode;latestThermo=s.thermostat;
  if($('settingsArea').hidden&&$('historyArea').hidden&&$('helpArea').hidden&&$('sensorArea').hidden){$('dashboardArea').hidden=currentThermostatMode;$('thermostatView').hidden=!currentThermostatMode;}
  renderThermostat(latestThermo);
  for(const [id,index] of [['supplyTemperature',3],['returnTemperature',4]]){const c=s.channels[index];$(id).textContent=c&&c.valid?c.value.toFixed(1)+' °C':'Sem leitura';}
  $('deviceName').textContent=s.name||'Sensor KNX';document.title=(s.name||'Sensor KNX')+' · MySmartHouse';
- $('orbitVersion').textContent='Firmware '+(s.firmware||'—')+(s.build?' · '+s.build:'');$('connection').textContent=s.name+' · '+s.ip+' · KNX '+s.knx+(s.firmware?' · '+s.firmware:'');
+ $('orbitVersion').textContent='Firmware '+(s.firmware||'—')+(s.build?' · '+s.build:'');$('connection').textContent=s.ip+' · KNX '+s.knx;
  $('status').textContent='Wi-Fi: '+s.rssi+' dBm | memória livre: '+s.freeHeap+' bytes\nUptime: '+Math.floor(s.uptimeMs/1000)+' s | BME280: '+(s.bme?'detetado':'ausente/desativado')+' | OLED: '+(s.oled?'ativo':'ausente/desativado')+'\nI²C principal: '+(s.i2cMain||'não iniciado')+' | I²C OLED: '+(s.i2cOled||'não iniciado')+'\nKNX individual: '+s.individual+' | enviados: '+s.sent+' | confirmados: '+s.acked+' | falhas: '+s.failed+'\n'+s.lastEvent;
  $('readings').textContent='';for(const [i,name]of [[0,'Temperatura'],[1,'Humidade'],[2,'Pressão'],[-1,'Hora']]){const d=document.createElement('div');d.className='card';const title=document.createElement('div'),v=document.createElement('div');title.textContent=name;v.className='value';if(i<0){v.id='localClock';v.title='Hora local do dispositivo que mostra esta página';}else{const c=s.channels[i];v.textContent=sensorDisplay(c,i);appendTrend(v,c,i);}d.append(title,v);$('readings').append(d);}updateClock();
  const sensorReadings=$('sensorReadings');sensorReadings.textContent='';
@@ -507,7 +795,7 @@ async function refresh(){if(busy)return;try{
  $('roms').textContent=(s.roms||[]).join(', ')||'Nenhuma; configura o GPIO e reinicia';
  $('hardwareRoms').textContent=$('roms').textContent;
  const log=(s.telegrams||[]).join('\n')||'Ainda não foram recebidos telegramas';$('telegrams').textContent=log;if(adminSession&&location.pathname==='/config.html')$('knxConsole').textContent=log;return s;
- }catch(e){$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
+ }catch(e){orbitShowPower(null);$('connection').textContent='Sem ligação — '+e.message;for(const id of ['supplyTemperature','returnTemperature'])$(id).textContent='Sem ligação';}
 }
 let webMcpController=null;
 function webMcpSchema(properties,required=Object.keys(properties)){return {type:'object',properties,required,additionalProperties:false};}
@@ -614,11 +902,11 @@ $('wifiNetworks').onchange=()=>{if($('wifiNetworks').value)$('ssid').value=$('wi
 async function orbitDiagnostics(){try{const r=await adminApi('/api/diagnostics');$('orbitDiagnostics').textContent=r.version+' · '+r.build+'\nUptime '+r.uptime+' s · RAM livre '+r.freeHeap;$('orbitLogs').textContent=r.logs;$('knxConsole').textContent=r.telegrams.join('\n');$('orbitVersion').textContent='Firmware '+r.version+' · '+r.build}catch(e){show(e.message)}}
 $('refreshDiagnostics').onclick=orbitDiagnostics;
 $('changeAdminPassword').onclick=async()=>{try{await adminApi('/api/admin/password',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify({password:$('newAdminPassword').value})});adminSession='';sessionStorage.removeItem('adminSession');location.reload()}catch(e){show(e.message)}};
-selectTab('config');
+selectTab(tabFromHash());
 $('logoutAdmin').onclick=async()=>{try{await adminApi('/api/admin/logout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:'{}'});adminSession='';sessionStorage.removeItem('adminSession');location.reload()}catch(e){show(e.message)}};
-if(typeof window!=='undefined')window.addEventListener('hashchange',()=>{if(location.pathname==='/config.html')return;const page=location.hash==='#configuracoes'?'settings':routeFromHash();view(page,false);if(page==='history')refreshHistory();});
+if(typeof window!=='undefined')window.addEventListener('hashchange',()=>{if(location.pathname==='/config.html'){selectTab(tabFromHash());return;}const page=location.hash==='#configuracoes'?'settings':routeFromHash();view(page,false);if(page==='history')refreshHistory();});
 (async()=>{try{await refresh();await registerWebMcpTools();try{await refreshHeat();}catch(e){$('heatMessage').textContent='Mapa do coletor indisponível: '+e.message;}if(initialSettings&&location.pathname==='/config.html')await openSettings();else if(location.hash==='#historico')await refreshHistory();setInterval(updateClock,1000);setInterval(()=>{refresh();if(!busy)refreshHeat().catch(e=>{if(heatingPlan){heatingPlan.armed=false;heatingPlan.pumpState='desconhecido';heatingPlan.circuits.forEach(c=>c.state='desconhecido');renderHeatStatus();}$('pumpState').dataset.state='unknown';$('pumpStatus').textContent='Sem ligação';$('pumpDetail').textContent='Estados indisponíveis';$('toggleHeat').disabled=true;$('refreshHeat').disabled=true;});},3000);}catch(e){show(e.message);}})();
-</script><footer class="orbit-footer" id="orbitVersion">Firmware Sensor · a consultar versão</footer></div><script>async function timeRequest(sync=false){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);try{return await adminApi(sync?'/api/time/sync':'/api/time',{method:sync?'POST':'GET',headers:{'X-CSRF-Token':csrf},signal:controller.signal})}finally{clearTimeout(timer)}}
+</script><script>async function timeRequest(sync=false){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),5000);try{return await adminApi(sync?'/api/time/sync':'/api/time',{method:sync?'POST':'GET',headers:{'X-CSRF-Token':csrf},signal:controller.signal})}finally{clearTimeout(timer)}}
 function timeDraftChanged(){return !cfg||['ntpServer','ntpSecondary','timezone'].some(id=>$(id).value!==(cfg[id]||(id==='ntpSecondary'?'time.cloudflare.com':'')))}
 
 function orbitTimezone(id,value){const select=document.getElementById(id);if(![...select.options].some(o=>o.value===value))select.add(new Option('Personalizado',value));select.value=value;}
@@ -647,4 +935,4 @@ async function validateFirmware(file,product,hardware,chip){
  if(text(288,8)!=='IOTFW01'||text(296,32)!==product||text(328,32)!==hardware)throw Error('Firmware de outro equipamento ou sem identificação compatível.');
  return text(360,32);
 }
-</script></body></html>)HTML";
+</script></div></body></html>)HTML";

@@ -1,0 +1,39 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const dom=new JSDOM('<button id="railPower"></button><span id="railPowerStatus"></span><span id="railPowerNotice" role="status"></span><button id="orbitTheme" aria-checked="false"></button>',{url:'http://orbit.test',runScripts:'outside-only'});
+const w=dom.window,d=w.document;let now=0,frame,commands=[];
+w.requestAnimationFrame=fn=>{frame=fn;return 1};w.cancelAnimationFrame=()=>{frame=null};
+Object.defineProperty(w.performance,'now',{value:()=>now});
+const raw=fs.readFileSync(path.join(__dirname,'../include/WebUi.h'),'utf8');
+const actual=new JSDOM(raw.split('R"HTML(')[1].split(')HTML"')[0]);
+assert.equal(actual.window.document.querySelectorAll('#orbitTheme').length,1);
+assert.equal(actual.window.document.querySelectorAll('#railPower').length,1);
+actual.window.close();
+w.eval(raw.split('<script data-orbit-controls>')[1].split("initOrbitTheme('iot-")[0]);
+let state={powerEnabled:true,cpuUsePct:20,heapUsePct:40};
+let respond=async target=>{state={...state,powerEnabled:target};power.update(state);return true;};
+const power=w.createOrbitPower(async target=>{commands.push(target);return respond(target);});
+const button=d.getElementById('railPower');
+const notice=d.getElementById('railPowerNotice');
+function key(type,value){button.dispatchEvent(new w.KeyboardEvent(type,{key:value,cancelable:true}))}
+async function advance(ms){now+=ms;const fn=frame;frame=null;if(fn)await fn(now);}
+(async()=>{
+ power.update(state);assert.equal(d.getElementById('railCpu').textContent,'20%');
+ key('keydown',' ');await advance(1499);key('keyup',' ');await advance(20);assert.equal(commands.length,0);
+ key('keydown','Enter');await advance(1500);assert.deepEqual(commands,[false]);assert.equal(button.dataset.state,'off');
+ key('keyup','Enter');key('keydown',' ');key('keydown','Escape');await advance(1600);assert.equal(commands.length,1);
+ key('keydown',' ');power.update(null);await advance(1600);assert.equal(commands.length,1);assert.equal(button.getAttribute('aria-disabled'),'true');
+ power.update(state);key('keydown',' ');power.update({...state,canToggle:false});await advance(1600);assert.equal(commands.length,1);
+ respond=async()=>{throw Error('Operação em curso')};power.update(state);key('keydown',' ');await advance(1500);assert.equal(commands.length,2);assert.equal(button.dataset.state,'off');assert.equal(notice.textContent,'Operação em curso');assert.equal(notice.dataset.kind,'error');
+ power.update({...state,powerEnabled:true,cpuUsePct:null,cpuMHz:240});assert.equal(d.getElementById('railCpu').textContent,'240 MHz');assert.match(button.getAttribute('aria-label'),/utilização indisponível/);
+ power.update({...state,powerEnabled:true});let finish;
+ respond=()=>new Promise(resolve=>{finish=resolve;});
+ key('keydown','Enter');const sending=advance(1500);assert.equal(notice.textContent,'A enviar comando…');
+ power.update({...state,powerEnabled:false,level:'warning',label:'A parar',canToggle:false});finish(true);await sending;
+ assert.equal(button.dataset.state,'warning');assert.match(button.getAttribute('aria-label'),/A parar/);assert.equal(notice.textContent,'A parar');
+ power.update({...state,powerEnabled:false,level:'critical',label:'Sem confirmação',canToggle:false});
+ assert.equal(notice.textContent,'Sem confirmação');assert.equal(notice.dataset.kind,'error');
+ power.update({...state,powerEnabled:false});assert.equal(notice.textContent,'');assert.equal(button.dataset.state,'off');
+ w.initOrbitTheme('test-theme');d.getElementById('orbitTheme').click();assert(w.document.body.classList.contains('light'));assert.equal(w.localStorage.getItem('test-theme'),'light');
+ console.log('PASS hold/cancel/keyboard/offline/busy/failure/metrics/theme');w.close();
+})().catch(e=>{console.error(e);w.close();process.exitCode=1});

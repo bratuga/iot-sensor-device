@@ -1,6 +1,6 @@
 # NTP e validação OTA
 
-Implementação na branch `feature/ntp-ota-validation`, a partir do main atual em 08.11.2026. Sem instalação nos equipamentos nem merge nesta entrega.
+Integração de NTP e validação OTA com o painel Orbit. Ensaios no equipamento permanecem pendentes.
 
 ## Hora
 
@@ -20,6 +20,6 @@ Não depende do nome do ficheiro. Firmwares antigos sem descritor são recusados
 
 Testes de fragmentação do cabeçalho, alvo/processador errado, ausência de identidade, truncagem, excesso de bytes, cancelamento, erro de escrita e recusa na finalização. Testes de estado NTP com Wi-Fi indisponível, relógio previamente válido, callback real simulado, timeout e rollover de millis. Testes existentes de controlo e interface mantidos. Ensaios de rede/OTA em hardware permanecem pendentes.
 
-Sensor: preserva main f216204 (arranque seguro do aquecimento, dashboard e histórico). Por decisão explícita do proprietário em 08.11.2026, mantém-se a condição OTA existente em modo termóstato: não foi acrescentada exigência de OFF confirmado. A regulação pode ficar suspensa durante o upload; este comportamento pré-existente não foi alterado.
+O firmware preserva o arranque seguro do aquecimento, o painel Orbit e o histórico. Por decisão explícita do proprietário em 08.11.2026, mantém-se a condição OTA existente em modo termóstato: não foi acrescentada exigência de OFF confirmado. A regulação pode ficar suspensa durante o upload; este comportamento pré-existente não foi alterado.
 
 Verificação local: compilação do firmware e descritor passou; os três binários reais foram cruzados com os validadores web (cada projeto aceita apenas o seu). Painéis NTP revistos no navegador com dados simulados, incluindo apresentação móvel e alterações por guardar. Isto não constitui validação física de NTP/OTA.
